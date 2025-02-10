@@ -225,6 +225,13 @@ const LogsTable = () => {
       },
     },
     {
+      title: 'IP',
+      dataIndex: 'ip',
+      render: (text, record, index) => {
+        return <>{text}</>;
+      },
+    },  
+    {
       title: t('分组'),
       dataIndex: 'group',
       render: (text, record, index) => {
