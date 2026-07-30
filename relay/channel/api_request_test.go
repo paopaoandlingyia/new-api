@@ -3,12 +3,46 @@ package channel
 import (
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
+	"github.com/QuantumNous/new-api/common"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
 )
+
+func TestDoRequestCapturesAndClearsUpstreamAccount(t *testing.T) {
+	t.Parallel()
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/with-account" {
+			w.Header().Set(common.UpstreamAccountHeader, " friend-a ")
+		}
+		w.WriteHeader(http.StatusOK)
+	}))
+	t.Cleanup(server.Close)
+
+	gin.SetMode(gin.TestMode)
+	ctx, _ := gin.CreateTestContext(httptest.NewRecorder())
+	info := &relaycommon.RelayInfo{ChannelMeta: &relaycommon.ChannelMeta{}}
+
+	ctx.Request = httptest.NewRequest(http.MethodPost, "/v1/messages", nil)
+	requestWithAccount, err := http.NewRequest(http.MethodPost, server.URL+"/with-account", strings.NewReader("{}"))
+	require.NoError(t, err)
+	response, err := DoRequest(ctx, requestWithAccount, info)
+	require.NoError(t, err)
+	require.NoError(t, response.Body.Close())
+	require.Equal(t, "friend-a", ctx.GetString(common.UpstreamAccountKey))
+
+	ctx.Request = httptest.NewRequest(http.MethodPost, "/v1/messages", nil)
+	requestWithoutAccount, err := http.NewRequest(http.MethodPost, server.URL+"/without-account", strings.NewReader("{}"))
+	require.NoError(t, err)
+	response, err = DoRequest(ctx, requestWithoutAccount, info)
+	require.NoError(t, err)
+	require.NoError(t, response.Body.Close())
+	require.Empty(t, ctx.GetString(common.UpstreamAccountKey))
+}
 
 func TestProcessHeaderOverride_ChannelTestSkipsPassthroughRules(t *testing.T) {
 	t.Parallel()

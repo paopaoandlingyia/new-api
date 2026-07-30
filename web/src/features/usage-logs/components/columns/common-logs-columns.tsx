@@ -479,6 +479,28 @@ export function useCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
         },
       },
       {
+        accessorKey: 'upstream_account',
+        header: t('Upstream Account'),
+        cell: function UpstreamAccountCell({ row }) {
+          const { sensitiveVisible } = useUsageLogsContext()
+          const upstreamAccount = row.original.upstream_account
+
+          if (!upstreamAccount) return null
+
+          return (
+            <StatusBadge
+              label={sensitiveVisible ? upstreamAccount : '••••'}
+              autoColor={upstreamAccount}
+              copyText={upstreamAccount}
+              copyable={sensitiveVisible}
+              size='sm'
+              showDot={false}
+              className='max-w-[160px] font-mono'
+            />
+          )
+        },
+      },
+      {
         id: 'user',
         header: t('User'),
         accessorFn: (row) => row.username,

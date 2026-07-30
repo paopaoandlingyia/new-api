@@ -533,6 +533,12 @@ func doRequest(c *gin.Context, req *http.Request, info *common.RelayInfo) (*http
 	if upID := resp.Header.Get(common2.RequestIdKey); upID != "" {
 		c.Set(common2.UpstreamRequestIdKey, upID)
 	}
+	upstreamAccount := strings.TrimSpace(resp.Header.Get(common2.UpstreamAccountHeader))
+	upstreamAccountRunes := []rune(upstreamAccount)
+	if len(upstreamAccountRunes) > common2.UpstreamAccountMaxLen {
+		upstreamAccount = string(upstreamAccountRunes[:common2.UpstreamAccountMaxLen])
+	}
+	c.Set(common2.UpstreamAccountKey, upstreamAccount)
 
 	_ = req.Body.Close()
 	_ = c.Request.Body.Close()

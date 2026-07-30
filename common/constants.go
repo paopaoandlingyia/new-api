@@ -171,8 +171,11 @@ var GeminiSafetySetting string
 var CohereSafetySetting string
 
 const (
-	RequestIdKey         = "X-Oneapi-Request-Id"
-	UpstreamRequestIdKey = "X-Upstream-Request-Id"
+	RequestIdKey          = "X-Oneapi-Request-Id"
+	UpstreamRequestIdKey  = "X-Upstream-Request-Id"
+	UpstreamAccountKey    = "upstream_account"
+	UpstreamAccountHeader = "X-Claude-Relay-Account"
+	UpstreamAccountMaxLen = 128
 )
 
 const (

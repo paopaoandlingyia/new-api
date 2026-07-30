@@ -85,6 +85,7 @@ function buildSearchSourceKey(values: {
   token?: unknown
   group?: unknown
   username?: unknown
+  upstreamAccount?: unknown
   requestId?: unknown
   upstreamRequestId?: unknown
   type?: unknown
@@ -97,6 +98,7 @@ function buildSearchSourceKey(values: {
     values.token,
     values.group,
     values.username,
+    values.upstreamAccount,
     values.requestId,
     values.upstreamRequestId,
     Array.isArray(values.type) ? values.type.join(',') : values.type,
@@ -130,6 +132,7 @@ export function CommonLogsFilterBar<TData>(
       token: searchParams.token,
       group: searchParams.group,
       username: searchParams.username,
+      upstreamAccount: searchParams.upstreamAccount,
       requestId: searchParams.requestId,
       upstreamRequestId: searchParams.upstreamRequestId,
       type: searchParams.type,
@@ -144,6 +147,7 @@ export function CommonLogsFilterBar<TData>(
       token: searchParams.token || undefined,
       group: searchParams.group || undefined,
       username: searchParams.username || undefined,
+      upstreamAccount: searchParams.upstreamAccount || undefined,
       requestId: searchParams.requestId || undefined,
       upstreamRequestId: searchParams.upstreamRequestId || undefined,
     }
@@ -160,6 +164,7 @@ export function CommonLogsFilterBar<TData>(
     searchParams.token,
     searchParams.group,
     searchParams.username,
+    searchParams.upstreamAccount,
     searchParams.requestId,
     searchParams.upstreamRequestId,
     searchParams.type,
@@ -237,6 +242,7 @@ export function CommonLogsFilterBar<TData>(
     !!filters.token ||
     !!filters.username ||
     !!filters.channel ||
+    !!filters.upstreamAccount ||
     !!filters.requestId ||
     !!filters.upstreamRequestId
 
@@ -248,6 +254,7 @@ export function CommonLogsFilterBar<TData>(
     filters.token,
     isAdmin ? filters.username : undefined,
     isAdmin ? filters.channel : undefined,
+    isAdmin ? filters.upstreamAccount : undefined,
     filters.requestId,
     filters.upstreamRequestId,
   ].filter(Boolean).length
@@ -386,6 +393,17 @@ export function CommonLogsFilterBar<TData>(
             placeholder={t('Channel ID')}
             value={filters.channel || ''}
             onChange={(e) => handleChange('channel', e.target.value)}
+            onKeyDown={handleKeyDown}
+          />
+        </LogsFilterField>
+      )}
+      {isAdmin && (
+        <LogsFilterField>
+          <LogsFilterInput
+            placeholder={t('Upstream Account')}
+            type={sensitiveType}
+            value={filters.upstreamAccount || ''}
+            onChange={(e) => handleChange('upstreamAccount', e.target.value)}
             onKeyDown={handleKeyDown}
           />
         </LogsFilterField>

@@ -674,6 +674,14 @@ export function DetailsDialog(props: DetailsDialogProps) {
             />
           )}
 
+          {props.isAdmin && props.log.upstream_account && (
+            <DetailRow
+              label={t('Upstream Account')}
+              value={props.log.upstream_account}
+              mono
+            />
+          )}
+
           {channelChain && props.isAdmin && (
             <DetailRow label={t('Retry Chain')} value={channelChain} mono />
           )}
