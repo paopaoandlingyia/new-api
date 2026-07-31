@@ -311,7 +311,7 @@ func migrateDB() error {
 			return err
 		}
 	}
-	return ensureUnmanagedBooleanColumns()
+	return ensureUnmanagedColumns()
 }
 
 func migrateDBFast() error {
@@ -392,7 +392,7 @@ func migrateDBFast() error {
 			return err
 		}
 	}
-	if err := ensureUnmanagedBooleanColumns(); err != nil {
+	if err := ensureUnmanagedColumns(); err != nil {
 		return err
 	}
 	common.SysLog("database migrated")
@@ -415,7 +415,15 @@ func (subscriptionPlanEnabledColumn) TableName() string {
 	return "subscription_plans"
 }
 
-func ensureUnmanagedBooleanColumns() error {
+type subscriptionPlanPriceAmountColumn struct {
+	PriceAmount float64 `gorm:"column:price_amount;type:decimal(10,6);not null;default:0"`
+}
+
+func (subscriptionPlanPriceAmountColumn) TableName() string {
+	return "subscription_plans"
+}
+
+func ensureUnmanagedColumns() error {
 	if DB.Migrator().HasTable(&CustomOAuthProvider{}) && !DB.Migrator().HasColumn(&CustomOAuthProvider{}, "enabled") {
 		if err := DB.Migrator().AddColumn(&customOAuthProviderEnabledColumn{}, "Enabled"); err != nil {
 			return err
@@ -423,6 +431,11 @@ func ensureUnmanagedBooleanColumns() error {
 	}
 	if DB.Migrator().HasTable(&SubscriptionPlan{}) && !DB.Migrator().HasColumn(&SubscriptionPlan{}, "enabled") {
 		if err := DB.Migrator().AddColumn(&subscriptionPlanEnabledColumn{}, "Enabled"); err != nil {
+			return err
+		}
+	}
+	if DB.Migrator().HasTable(&SubscriptionPlan{}) && !DB.Migrator().HasColumn(&SubscriptionPlan{}, "price_amount") {
+		if err := DB.Migrator().AddColumn(&subscriptionPlanPriceAmountColumn{}, "PriceAmount"); err != nil {
 			return err
 		}
 	}

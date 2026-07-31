@@ -11,7 +11,7 @@ import (
 	"gorm.io/gorm"
 )
 
-func TestEnsureUnmanagedBooleanColumnsAddsMissingColumns(t *testing.T) {
+func TestEnsureUnmanagedColumnsAddsMissingColumns(t *testing.T) {
 	previousDB := DB
 	previousMainDatabaseType, previousLogDatabaseType := common.MainDatabaseType(), common.LogDatabaseType()
 	common.SetDatabaseTypes(common.DatabaseTypeSQLite, common.DatabaseTypeSQLite)
@@ -31,9 +31,11 @@ func TestEnsureUnmanagedBooleanColumnsAddsMissingColumns(t *testing.T) {
 	require.NoError(t, db.AutoMigrate(&CustomOAuthProvider{}, &SubscriptionPlan{}))
 	require.False(t, db.Migrator().HasColumn(&CustomOAuthProvider{}, "enabled"))
 	require.False(t, db.Migrator().HasColumn(&SubscriptionPlan{}, "enabled"))
+	require.False(t, db.Migrator().HasColumn(&SubscriptionPlan{}, "price_amount"))
 
-	require.NoError(t, ensureUnmanagedBooleanColumns())
+	require.NoError(t, ensureUnmanagedColumns())
 	require.True(t, db.Migrator().HasColumn(&CustomOAuthProvider{}, "enabled"))
 	require.True(t, db.Migrator().HasColumn(&SubscriptionPlan{}, "enabled"))
-	require.NoError(t, ensureUnmanagedBooleanColumns())
+	require.True(t, db.Migrator().HasColumn(&SubscriptionPlan{}, "price_amount"))
+	require.NoError(t, ensureUnmanagedColumns())
 }

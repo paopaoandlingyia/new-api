@@ -24,6 +24,7 @@ func TestAdminCreateSubscriptionPlanEnabledDefault(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, db.AutoMigrate(&model.SubscriptionPlan{}))
 	require.NoError(t, db.Exec("ALTER TABLE subscription_plans ADD COLUMN enabled numeric").Error)
+	require.NoError(t, db.Exec("ALTER TABLE subscription_plans ADD COLUMN price_amount numeric").Error)
 	model.DB = db
 	t.Cleanup(func() {
 		model.DB = previousDB

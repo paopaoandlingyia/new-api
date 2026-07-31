@@ -60,8 +60,8 @@ func TestMain(m *testing.M) {
 	); err != nil {
 		panic("failed to migrate: " + err.Error())
 	}
-	if err := ensureUnmanagedBooleanColumns(); err != nil {
-		panic("failed to add unmanaged boolean columns: " + err.Error())
+	if err := ensureUnmanagedColumns(); err != nil {
+		panic("failed to add unmanaged columns: " + err.Error())
 	}
 
 	os.Exit(m.Run())
