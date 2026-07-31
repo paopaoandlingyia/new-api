@@ -23,6 +23,7 @@ func TestAdminCreateSubscriptionPlanEnabledDefault(t *testing.T) {
 	db, err := gorm.Open(sqlite.Open(dsn), &gorm.Config{})
 	require.NoError(t, err)
 	require.NoError(t, db.AutoMigrate(&model.SubscriptionPlan{}))
+	require.NoError(t, db.Exec("ALTER TABLE subscription_plans ADD COLUMN enabled numeric").Error)
 	model.DB = db
 	t.Cleanup(func() {
 		model.DB = previousDB

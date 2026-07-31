@@ -311,7 +311,7 @@ func migrateDB() error {
 			return err
 		}
 	}
-	return nil
+	return ensureUnmanagedBooleanColumns()
 }
 
 func migrateDBFast() error {
@@ -392,7 +392,40 @@ func migrateDBFast() error {
 			return err
 		}
 	}
+	if err := ensureUnmanagedBooleanColumns(); err != nil {
+		return err
+	}
 	common.SysLog("database migrated")
+	return nil
+}
+
+type customOAuthProviderEnabledColumn struct {
+	Enabled bool `gorm:"column:enabled"`
+}
+
+func (customOAuthProviderEnabledColumn) TableName() string {
+	return "custom_oauth_providers"
+}
+
+type subscriptionPlanEnabledColumn struct {
+	Enabled bool `gorm:"column:enabled"`
+}
+
+func (subscriptionPlanEnabledColumn) TableName() string {
+	return "subscription_plans"
+}
+
+func ensureUnmanagedBooleanColumns() error {
+	if DB.Migrator().HasTable(&CustomOAuthProvider{}) && !DB.Migrator().HasColumn(&CustomOAuthProvider{}, "enabled") {
+		if err := DB.Migrator().AddColumn(&customOAuthProviderEnabledColumn{}, "Enabled"); err != nil {
+			return err
+		}
+	}
+	if DB.Migrator().HasTable(&SubscriptionPlan{}) && !DB.Migrator().HasColumn(&SubscriptionPlan{}, "enabled") {
+		if err := DB.Migrator().AddColumn(&subscriptionPlanEnabledColumn{}, "Enabled"); err != nil {
+			return err
+		}
+	}
 	return nil
 }
 
