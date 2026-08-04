@@ -2,8 +2,10 @@ package controller
 
 import (
 	"net/http"
+	"sort"
 	"strconv"
 
+	"github.com/QuantumNous/new-api/common"
 	perfmetrics "github.com/QuantumNous/new-api/pkg/perf_metrics"
 	"github.com/QuantumNous/new-api/setting/ratio_setting"
 
@@ -27,6 +29,14 @@ func GetPerfMetricsSummary(c *gin.Context) {
 			"message": err.Error(),
 		})
 		return
+	}
+
+	// QuerySummaryAll 按模型名返回，避免公开调用者从顺序反推热度排行。管理端的
+	// "Top 模型"面板需要热度顺序，只对管理员重排。
+	if c.GetInt("role") >= common.RoleAdminUser {
+		sort.SliceStable(result.Models, func(i, j int) bool {
+			return result.Models[i].RequestCount > result.Models[j].RequestCount
+		})
 	}
 
 	c.JSON(http.StatusOK, gin.H{

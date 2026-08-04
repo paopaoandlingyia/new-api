@@ -191,8 +191,11 @@ func QuerySummaryAll(hours int, groups []string) (SummaryAllResult, error) {
 			RequestCount:       total.requestCount,
 		})
 	}
+	// 按模型名排序。这个接口在模型广场公开时任何访客都能直接调用，若按请求量
+	// 排序，返回顺序本身就泄露了各模型的热度排行，即使 RequestCount 不出现在
+	// 响应里也一样。需要热度顺序的管理端在 controller 层自行重排。
 	sort.Slice(models, func(i, j int) bool {
-		return models[i].RequestCount > models[j].RequestCount
+		return models[i].ModelName < models[j].ModelName
 	})
 
 	return SummaryAllResult{Models: models}, nil
