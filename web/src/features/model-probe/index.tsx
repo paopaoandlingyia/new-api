@@ -58,11 +58,28 @@ export function ModelProbe() {
     refetchInterval: 30 * 1000,
   })
 
-  const statuses = useMemo(
-    () => probeQuery.data?.data.statuses ?? [],
-    [probeQuery.data]
-  )
   const setting = probeQuery.data?.data.setting
+  const statuses = useMemo(() => {
+    const statusMap = new Map(
+      (probeQuery.data?.data.statuses ?? []).map((status) => [
+        status.model_name,
+        status,
+      ])
+    )
+    const modelNames = new Set(probeQuery.data?.data.models ?? [])
+    for (const status of probeQuery.data?.data.statuses ?? []) {
+      modelNames.add(status.model_name)
+    }
+
+    return [...modelNames].sort().map(
+      (modelName) =>
+        statusMap.get(modelName) ?? {
+          model_name: modelName,
+          monitored: false,
+          status: 'unmonitored' as const,
+        }
+    )
+  }, [probeQuery.data])
 
   const counts = useMemo(() => {
     const tally = { operational: 0, degraded: 0, outage: 0, other: 0 }
@@ -87,16 +104,16 @@ export function ModelProbe() {
     onError: () => toast.error(t('Failed to start probe')),
   })
 
-  // 排除名单存在 model_probe_setting.excluded_models 里，是一个 JSON 数组字符串。
+  // 选中名单存在 model_probe_setting.probed_models 里，是一个 JSON 数组字符串。
   // 通用 option 接口会对非字符串值做 fmt.Sprintf("%v")，所以必须自己序列化。
-  const toggleExclusion = useMutation({
+  const toggleProbeModel = useMutation({
     mutationFn: (variables: { modelName: string; monitored: boolean }) => {
-      const current = setting?.excluded_models ?? []
+      const current = setting?.probed_models ?? []
       const next = variables.monitored
-        ? current.filter((name) => name !== variables.modelName)
-        : [...current, variables.modelName]
+        ? [...current, variables.modelName]
+        : current.filter((name) => name !== variables.modelName)
       return updateSystemOption({
-        key: 'model_probe_setting.excluded_models',
+        key: 'model_probe_setting.probed_models',
         value: JSON.stringify([...new Set(next)]),
       })
     },
@@ -106,6 +123,7 @@ export function ModelProbe() {
         return
       }
       queryClient.invalidateQueries({ queryKey: PROBE_QUERY_KEY })
+      queryClient.invalidateQueries({ queryKey: ['model-probe-status'] })
       queryClient.invalidateQueries({ queryKey: ['system-options'] })
     },
     onError: () => toast.error(t('Failed to save')),
@@ -121,7 +139,7 @@ export function ModelProbe() {
           </h2>
           <p className='text-muted-foreground mt-1 text-sm'>
             {t(
-              'Each round sends one real request per text model through normal routing. Latency here reflects a minimal request, not real generation speed.'
+              'Each round sends one real request per selected model through normal routing. Latency here reflects a minimal request, not real generation speed.'
             )}
           </p>
         </div>
@@ -131,7 +149,11 @@ export function ModelProbe() {
           size='sm'
           className='gap-1.5'
           onClick={() => runProbe.mutate()}
-          disabled={runProbe.isPending || !setting?.enabled}
+          disabled={
+            runProbe.isPending ||
+            !setting?.enabled ||
+            setting.probed_models.length === 0
+          }
         >
           <RefreshCw
             className={cn('size-4', runProbe.isPending && 'animate-spin')}
@@ -161,6 +183,11 @@ export function ModelProbe() {
         <span className='text-muted-foreground'>
           {t('Not monitored')}: {counts.other}
         </span>
+        {setting && (
+          <span className='text-muted-foreground'>
+            {t('Selected {{count}}', { count: setting.probed_models.length })}
+          </span>
+        )}
         {setting && (
           <span className='text-muted-foreground'>
             {t('Probe group')}: {setting.group} ·{' '}
@@ -253,12 +280,12 @@ export function ModelProbe() {
             cellClassName: tableStyles.compactCell,
             cell: (row: ModelProbeAdminStatus) => (
               <Switch
-                checked={
-                  !(setting?.excluded_models ?? []).includes(row.model_name)
-                }
-                disabled={toggleExclusion.isPending}
+                checked={(setting?.probed_models ?? []).includes(
+                  row.model_name
+                )}
+                disabled={toggleProbeModel.isPending}
                 onCheckedChange={(monitored) =>
-                  toggleExclusion.mutate({
+                  toggleProbeModel.mutate({
                     modelName: row.model_name,
                     monitored,
                   })

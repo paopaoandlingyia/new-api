@@ -62,7 +62,7 @@ export type ModelProbeSetting = {
   enabled: boolean
   interval_minutes: number
   group: string
-  excluded_models: string[]
+  probed_models: string[]
   outage_threshold: number
   timeout_seconds: number
   degraded_ring_size: number
@@ -73,6 +73,7 @@ export type ModelProbeAdminData = {
   message?: string
   data: {
     setting: ModelProbeSetting
+    models: string[]
     statuses: ModelProbeAdminStatus[]
   }
 }

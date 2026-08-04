@@ -12,7 +12,7 @@ type ModelProbeSetting struct {
 	Enabled          bool     `json:"enabled"`
 	IntervalMinutes  float64  `json:"interval_minutes"`
 	Group            string   `json:"group"`
-	ExcludedModels   []string `json:"excluded_models"`
+	ProbedModels     []string `json:"probed_models"`
 	OutageThreshold  int      `json:"outage_threshold"`
 	TimeoutSeconds   int      `json:"timeout_seconds"`
 	DegradedRingSize int      `json:"degraded_ring_size"`
@@ -24,7 +24,7 @@ var modelProbeSetting = ModelProbeSetting{
 	Enabled:          false,
 	IntervalMinutes:  10,
 	Group:            "default",
-	ExcludedModels:   []string{},
+	ProbedModels:     []string{},
 	OutageThreshold:  2,
 	TimeoutSeconds:   30,
 	DegradedRingSize: 6,
@@ -76,11 +76,33 @@ func GetDegradedRingSize() int {
 	return modelProbeSetting.DegradedRingSize
 }
 
-// IsModelExcluded 判断模型是否被管理员从监测中排除。名单是排除制而非纳入制：
-// 漏配一个新模型只会多探一次，而漏勾会让状态灯永远不亮，属于静默失败。
-func IsModelExcluded(modelName string) bool {
-	for _, excluded := range modelProbeSetting.ExcludedModels {
-		if strings.EqualFold(strings.TrimSpace(excluded), modelName) {
+// GetProbedModels 返回管理员明确选择的模型。空名单表示不探测任何模型。
+func GetProbedModels() []string {
+	models := make([]string, 0, len(modelProbeSetting.ProbedModels))
+	seen := make(map[string]struct{}, len(modelProbeSetting.ProbedModels))
+	for _, configured := range modelProbeSetting.ProbedModels {
+		modelName := strings.TrimSpace(configured)
+		key := strings.ToLower(modelName)
+		if modelName == "" {
+			continue
+		}
+		if _, ok := seen[key]; ok {
+			continue
+		}
+		seen[key] = struct{}{}
+		models = append(models, modelName)
+	}
+	return models
+}
+
+// IsModelProbed 判断模型是否被管理员明确纳入监测。
+func IsModelProbed(modelName string) bool {
+	modelName = strings.TrimSpace(modelName)
+	if modelName == "" {
+		return false
+	}
+	for _, configured := range modelProbeSetting.ProbedModels {
+		if strings.EqualFold(strings.TrimSpace(configured), modelName) {
 			return true
 		}
 	}

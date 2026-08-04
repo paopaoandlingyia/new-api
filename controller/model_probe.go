@@ -72,7 +72,9 @@ type modelProbeHandler struct{}
 
 func (modelProbeHandler) Type() string { return model.SystemTaskTypeModelProbe }
 
-func (modelProbeHandler) Enabled() bool { return model_probe_setting.GetSetting().Enabled }
+func (modelProbeHandler) Enabled() bool {
+	return model_probe_setting.GetSetting().Enabled && len(model_probe_setting.GetProbedModels()) > 0
+}
 
 func (modelProbeHandler) Interval() time.Duration {
 	minutes := model_probe_setting.GetIntervalMinutes()
@@ -101,7 +103,7 @@ func (modelProbeHandler) Run(ctx context.Context, task *model.SystemTask, runner
 // 进程内存里、重启即清空。两者叠加会让重启后的状态页空白最长一个探测间隔。这里
 // 在存储为空时主动入队一次，把空窗压到一轮探测的耗时。
 func EnqueueModelProbeOnStartup() {
-	if !model_probe_setting.GetSetting().Enabled {
+	if !model_probe_setting.GetSetting().Enabled || len(model_probe_setting.GetProbedModels()) == 0 {
 		return
 	}
 	if len(modelprobe.LoadAll()) > 0 {
@@ -112,12 +114,15 @@ func EnqueueModelProbeOnStartup() {
 	}
 }
 
-// runModelProbeTask 执行一轮全量探测：对探测分组下的每个文本模型发一次真实请求，
-// 把结果写入 modelprobe 存储，并清理已经下线的模型。
+// runModelProbeTask 执行一轮选中模型的探测：对探测分组下被管理员选中的文本模型
+// 发一次真实请求，把结果写入 modelprobe 存储，并清理已经取消监测的模型。
 func runModelProbeTask(ctx context.Context, report func(processed, total int)) (modelProbeSummary, error) {
 	summary := modelProbeSummary{}
 	if ctx == nil {
 		ctx = context.Background()
+	}
+	if !model_probe_setting.GetSetting().Enabled {
+		return summary, nil
 	}
 	testUserID, err := resolveChannelTestUserID(nil)
 	if err != nil {
@@ -129,6 +134,13 @@ func runModelProbeTask(ctx context.Context, report func(processed, total int)) (
 
 	group := model_probe_setting.GetProbeGroup()
 	models := model.GetGroupEnabledModels(group)
+	selectedModels := make([]string, 0, len(models))
+	for _, modelName := range models {
+		if model_probe_setting.IsModelProbed(modelName) {
+			selectedModels = append(selectedModels, modelName)
+		}
+	}
+	models = selectedModels
 	sort.Strings(models)
 	summary.TotalModels = len(models)
 
@@ -148,12 +160,15 @@ func runModelProbeTask(ctx context.Context, report func(processed, total int)) (
 		if ctx.Err() != nil {
 			break
 		}
+		if !model_probe_setting.GetSetting().Enabled {
+			return summary, nil
+		}
 		if report != nil {
 			report(index, len(models))
 		}
 
 		endpointType, requestPath, probeable := resolveProbeEndpoint(modelName)
-		if !probeable || model_probe_setting.IsModelExcluded(modelName) {
+		if !probeable {
 			modelprobe.Save(modelprobe.Unmonitored(modelName))
 			summary.Unmonitored++
 			continue
@@ -205,7 +220,7 @@ func probeModel(ctx context.Context, timeout time.Duration, testUserID int, grou
 	defer cancel()
 
 	start := time.Now()
-	result := testChannel(probeCtx, channel, testUserID, modelName, endpointType, false)
+	result := testModelProbeChannel(probeCtx, channel, testUserID, modelName, endpointType, false)
 	latencyMs := time.Since(start).Milliseconds()
 
 	if result.newAPIError != nil {
@@ -247,9 +262,13 @@ func truncateProbeError(message string) string {
 // 不含任何用户使用信息，因此可以公开；但渠道 ID 与上游错误详情只给管理员。
 func GetModelProbeStatus(c *gin.Context) {
 	threshold := model_probe_setting.GetOutageThreshold()
+	enabled := model_probe_setting.GetSetting().Enabled
 	records := modelprobe.LoadAll()
 	statuses := make([]modelprobe.PublicStatus, 0, len(records))
 	for _, record := range records {
+		if !enabled || !model_probe_setting.IsModelProbed(record.ModelName) {
+			continue
+		}
 		statuses = append(statuses, record.Public(threshold))
 	}
 	sort.Slice(statuses, func(i, j int) bool {
@@ -268,6 +287,19 @@ func GetModelProbeStatus(c *gin.Context) {
 // GetModelProbeAdminStatus 返回带渠道与错误详情的完整状态，供管理页的运维表格使用。
 func GetModelProbeAdminStatus(c *gin.Context) {
 	threshold := model_probe_setting.GetOutageThreshold()
+	setting := model_probe_setting.GetSetting()
+	models := model.GetGroupEnabledModels(model_probe_setting.GetProbeGroup())
+	modelSet := make(map[string]struct{}, len(models)+len(model_probe_setting.GetProbedModels()))
+	for _, modelName := range models {
+		modelSet[modelName] = struct{}{}
+	}
+	for _, modelName := range model_probe_setting.GetProbedModels() {
+		if _, ok := modelSet[modelName]; !ok {
+			models = append(models, modelName)
+			modelSet[modelName] = struct{}{}
+		}
+	}
+	sort.Strings(models)
 	records := modelprobe.LoadAll()
 	type adminStatus struct {
 		modelprobe.Record
@@ -275,6 +307,12 @@ func GetModelProbeAdminStatus(c *gin.Context) {
 	}
 	statuses := make([]adminStatus, 0, len(records))
 	for _, record := range records {
+		if _, ok := modelSet[record.ModelName]; !ok {
+			continue
+		}
+		if !model_probe_setting.IsModelProbed(record.ModelName) {
+			record = modelprobe.Unmonitored(record.ModelName)
+		}
 		statuses = append(statuses, adminStatus{Record: record, Status: record.Status(threshold)})
 	}
 	sort.Slice(statuses, func(i, j int) bool {
@@ -284,7 +322,8 @@ func GetModelProbeAdminStatus(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"data": gin.H{
-			"setting":  model_probe_setting.GetSetting(),
+			"setting":  setting,
+			"models":   models,
 			"statuses": statuses,
 		},
 	})
@@ -293,6 +332,20 @@ func GetModelProbeAdminStatus(c *gin.Context) {
 // TriggerModelProbe 手动触发一轮探测。与定时运行共用同一个系统任务类型，因此
 // 已有任务在跑时不会重复执行。
 func TriggerModelProbe(c *gin.Context) {
+	if !model_probe_setting.GetSetting().Enabled {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"success": false,
+			"message": "模型可用性探测未启用",
+		})
+		return
+	}
+	if len(model_probe_setting.GetProbedModels()) == 0 {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"success": false,
+			"message": "尚未选择要探测的模型",
+		})
+		return
+	}
 	task, created, err := service.EnqueueSystemTask(model.SystemTaskTypeModelProbe, nil)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{

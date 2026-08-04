@@ -16,7 +16,7 @@ const (
 	StatusDegraded Status = "degraded"
 	// StatusOutage 连续失败达到阈值。
 	StatusOutage Status = "outage"
-	// StatusUnmonitored 未纳入监测：被管理员排除、非文本模型，或在探测分组下无可用渠道。
+	// StatusUnmonitored 未纳入监测：未被管理员选中、非文本模型，或在探测分组下无可用渠道。
 	StatusUnmonitored Status = "unmonitored"
 	// StatusUnknown 纳入了监测但还没有探测结果（例如刚启动）。
 	StatusUnknown Status = "unknown"
@@ -133,7 +133,7 @@ func ApplyResult(previous Record, modelName string, now int64, latencyMs int64, 
 	return updated
 }
 
-// Unmonitored 生成一条"不监测"记录，用于被排除的模型或探测分组下不可用的模型。
+// Unmonitored 生成一条"不监测"记录，用于未纳入监测或探测分组下不可用的模型。
 // 这类模型必须与"故障"区分开：它们不是坏了，而是压根没探。
 func Unmonitored(modelName string) Record {
 	return Record{ModelName: modelName, Monitored: false}

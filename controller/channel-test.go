@@ -74,6 +74,14 @@ func resolveChannelTestUserID(c *gin.Context) (int, error) {
 }
 
 func testChannel(ctx context.Context, channel *model.Channel, testUserID int, testModel string, endpointType string, isStream bool) testResult {
+	return runChannelTest(ctx, channel, testUserID, testModel, endpointType, isStream, false)
+}
+
+func testModelProbeChannel(ctx context.Context, channel *model.Channel, testUserID int, testModel string, endpointType string, isStream bool) testResult {
+	return runChannelTest(ctx, channel, testUserID, testModel, endpointType, isStream, true)
+}
+
+func runChannelTest(ctx context.Context, channel *model.Channel, testUserID int, testModel string, endpointType string, isStream bool, isModelProbe bool) testResult {
 	if ctx == nil {
 		ctx = context.Background()
 	}
@@ -233,7 +241,7 @@ func testChannel(ctx context.Context, channel *model.Channel, testUserID int, te
 		}
 	}
 
-	request := buildTestRequest(testModel, endpointType, channel, isStream)
+	request := buildTestRequest(testModel, endpointType, channel, isStream, isModelProbe)
 
 	info, err := relaycommon.GenRelayInfo(c, relayFormat, request, nil)
 
@@ -698,8 +706,15 @@ func detectErrorMessageFromJSONBytes(jsonBytes []byte) string {
 	return message
 }
 
-func buildTestRequest(model string, endpointType string, channel *model.Channel, isStream bool) dto.Request {
+const modelProbePrompt = "just say hi"
+
+func buildTestRequest(model string, endpointType string, channel *model.Channel, isStream bool, isModelProbe bool) dto.Request {
+	testPrompt := "hi"
 	testResponsesInput := json.RawMessage(`[{"role":"user","content":"hi"}]`)
+	if isModelProbe {
+		testPrompt = modelProbePrompt
+		testResponsesInput = json.RawMessage(`[{"role":"user","content":"just say hi"}]`)
+	}
 
 	// 根据端点类型构建不同的测试请求
 	if endpointType != "" {
@@ -730,7 +745,7 @@ func buildTestRequest(model string, endpointType string, channel *model.Channel,
 			// 返回 OpenAIResponsesRequest
 			return &dto.OpenAIResponsesRequest{
 				Model:  model,
-				Input:  json.RawMessage(`[{"role":"user","content":"hi"}]`),
+				Input:  testResponsesInput,
 				Stream: lo.ToPtr(isStream),
 			}
 		case constant.EndpointTypeOpenAIResponseCompact:
@@ -741,20 +756,22 @@ func buildTestRequest(model string, endpointType string, channel *model.Channel,
 			}
 		case constant.EndpointTypeAnthropic, constant.EndpointTypeGemini, constant.EndpointTypeOpenAI:
 			// 返回 GeneralOpenAIRequest
-			maxTokens := uint(16)
-			if constant.EndpointType(endpointType) == constant.EndpointTypeGemini {
-				maxTokens = 3000
-			}
 			req := &dto.GeneralOpenAIRequest{
 				Model:  model,
 				Stream: lo.ToPtr(isStream),
 				Messages: []dto.Message{
 					{
 						Role:    "user",
-						Content: "hi",
+						Content: testPrompt,
 					},
 				},
-				MaxTokens: lo.ToPtr(maxTokens),
+			}
+			if !isModelProbe {
+				maxTokens := uint(16)
+				if constant.EndpointType(endpointType) == constant.EndpointTypeGemini {
+					maxTokens = 3000
+				}
+				req.MaxTokens = lo.ToPtr(maxTokens)
 			}
 			if isStream {
 				req.StreamOptions = &dto.StreamOptions{IncludeUsage: true}
@@ -796,7 +813,7 @@ func buildTestRequest(model string, endpointType string, channel *model.Channel,
 	if strings.Contains(strings.ToLower(model), "codex") {
 		return &dto.OpenAIResponsesRequest{
 			Model:  model,
-			Input:  json.RawMessage(`[{"role":"user","content":"hi"}]`),
+			Input:  testResponsesInput,
 			Stream: lo.ToPtr(isStream),
 		}
 	}
@@ -808,7 +825,7 @@ func buildTestRequest(model string, endpointType string, channel *model.Channel,
 		Messages: []dto.Message{
 			{
 				Role:    "user",
-				Content: "hi",
+				Content: testPrompt,
 			},
 		},
 	}
@@ -816,16 +833,18 @@ func buildTestRequest(model string, endpointType string, channel *model.Channel,
 		testRequest.StreamOptions = &dto.StreamOptions{IncludeUsage: true}
 	}
 
-	if dto.IsOpenAIReasoningOModel(model) {
-		testRequest.MaxCompletionTokens = lo.ToPtr(uint(16))
-	} else if strings.Contains(model, "thinking") {
-		if !strings.Contains(model, "claude") {
-			testRequest.MaxTokens = lo.ToPtr(uint(50))
+	if !isModelProbe {
+		if dto.IsOpenAIReasoningOModel(model) {
+			testRequest.MaxCompletionTokens = lo.ToPtr(uint(16))
+		} else if strings.Contains(model, "thinking") {
+			if !strings.Contains(model, "claude") {
+				testRequest.MaxTokens = lo.ToPtr(uint(50))
+			}
+		} else if strings.Contains(model, "gemini") {
+			testRequest.MaxTokens = lo.ToPtr(uint(3000))
+		} else {
+			testRequest.MaxTokens = lo.ToPtr(uint(16))
 		}
-	} else if strings.Contains(model, "gemini") {
-		testRequest.MaxTokens = lo.ToPtr(uint(3000))
-	} else {
-		testRequest.MaxTokens = lo.ToPtr(uint(16))
 	}
 
 	return testRequest
