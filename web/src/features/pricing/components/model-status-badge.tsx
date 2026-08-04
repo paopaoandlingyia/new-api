@@ -74,7 +74,6 @@ export const ModelStatusBadge = memo(function ModelStatusBadge(
         'flex flex-col items-end gap-1 whitespace-nowrap',
         props.className
       )}
-      title={t('Status from active probing, not from user traffic')}
     >
       <div className='flex items-center gap-1.5'>
         <span

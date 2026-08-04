@@ -5254,7 +5254,6 @@
     "No probe results yet.": "暂无探测结果。",
     "Each round sends one real request per text model through normal routing. Latency here reflects a minimal request, not real generation speed.": "每轮对每个文本模型走正常选路发一次真实请求。这里的延迟对应的是极小请求，不代表真实生成速度。",
     "Probing is disabled. Enable it under System Settings to start collecting status.": "探测已关闭。在系统设置中启用后才会开始采集状态。",
-    "every {{count}} min": "每 {{count}} 分钟",
-    "Status from active probing, not from user traffic": "状态来自本站主动探测，不来自用户流量"
+    "every {{count}} min": "每 {{count}} 分钟"
   }
 }
