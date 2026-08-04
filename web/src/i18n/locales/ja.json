@@ -5254,6 +5254,7 @@
     "No probe results yet.": "No probe results yet.",
     "Each round sends one real request per text model through normal routing. Latency here reflects a minimal request, not real generation speed.": "Each round sends one real request per text model through normal routing. Latency here reflects a minimal request, not real generation speed.",
     "Probing is disabled. Enable it under System Settings to start collecting status.": "Probing is disabled. Enable it under System Settings to start collecting status.",
-    "every {{count}} min": "every {{count}} min"
+    "every {{count}} min": "every {{count}} min",
+    "Status from active probing, not from user traffic": "Status from active probing, not from user traffic"
   }
 }

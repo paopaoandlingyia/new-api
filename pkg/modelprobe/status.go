@@ -44,7 +44,16 @@ type PublicStatus struct {
 	Status      Status `json:"status"`
 	LastProbeAt int64  `json:"last_probe_at,omitempty"`
 	LatencyMs   int64  `json:"latency_ms,omitempty"`
+	Recent      []bool `json:"recent,omitempty"`
 }
+
+// degradedFailureCount 是"已恢复但仍算波动"所需的窗口内失败次数。
+//
+// 取 2 而不是 1 是关键：观察窗口是 Recent 的长度乘以探测间隔（默认 6 × 10 分钟
+// ＝ 一小时），如果一次孤立失败就判波动，模型在恢复后仍会黄整整一小时。那正是
+// 这套改造要消灭的"可用率九成还亮红灯"。波动应当表示"真的在抖"，即窗口内反复
+// 失败；单次抖动恢复后就该回到可用。
+const degradedFailureCount = 2
 
 // Status 派生对外状态。阈值在读取时计算而不是写入时固化，这样管理员调整阈值
 // 后不需要等下一轮探测才生效。
@@ -61,15 +70,24 @@ func (r Record) Status(outageThreshold int) Status {
 	if r.ConsecutiveFailures >= outageThreshold {
 		return StatusOutage
 	}
+	// 当前正处于失败状态但还没到故障阈值，直接算波动：此刻确实调不通。
 	if r.ConsecutiveFailures > 0 {
 		return StatusDegraded
 	}
-	for _, ok := range r.Recent {
-		if !ok {
-			return StatusDegraded
-		}
+	if r.recentFailures() >= degradedFailureCount {
+		return StatusDegraded
 	}
 	return StatusOperational
+}
+
+func (r Record) recentFailures() int {
+	failures := 0
+	for _, ok := range r.Recent {
+		if !ok {
+			failures++
+		}
+	}
+	return failures
 }
 
 func (r Record) Public(outageThreshold int) PublicStatus {
@@ -78,6 +96,9 @@ func (r Record) Public(outageThreshold int) PublicStatus {
 		Status:      r.Status(outageThreshold),
 		LastProbeAt: r.LastProbeAt,
 		LatencyMs:   r.LatencyMs,
+		// Recent 可以公开：探测按固定节奏发出，与用户是否使用该模型无关，
+		// 所以这串结果不透露任何使用情况，只是让状态灯能显示最近的走势。
+		Recent: r.Recent,
 	}
 }
 

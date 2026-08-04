@@ -33,6 +33,11 @@ export type ModelProbePublicStatus = {
   status: ModelProbeStatus
   last_probe_at?: number
   latency_ms?: number
+  /**
+   * 最近若干次探测结果，最新的在末尾。可以公开：探测按固定节奏发出，与用户是否
+   * 使用该模型无关，所以这串结果不透露任何使用情况。
+   */
+  recent?: boolean[]
 }
 
 export type ModelProbeStatusData = {
@@ -51,7 +56,6 @@ export type ModelProbeAdminStatus = ModelProbePublicStatus & {
   consecutive_failures?: number
   last_error?: string
   channel_id?: number
-  recent?: boolean[]
 }
 
 export type ModelProbeSetting = {

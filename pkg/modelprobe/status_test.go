@@ -35,8 +35,16 @@ func TestRecordStatus(t *testing.T) {
 			want:      StatusOperational,
 		},
 		{
-			name:      "just recovered still reads as degraded",
-			record:    Record{ModelName: "m", Monitored: true, LastProbeAt: 100, Recent: []bool{false, true}},
+			// 一次孤立失败恢复后必须回到可用。观察窗口有一小时，若单次抖动就判
+			// 波动，模型恢复后仍会黄整整一小时，等于重演"可用率九成还亮红灯"。
+			name:      "single isolated failure recovers to available",
+			record:    Record{ModelName: "m", Monitored: true, LastProbeAt: 100, Recent: []bool{false, true, true, true, true}},
+			threshold: 2,
+			want:      StatusOperational,
+		},
+		{
+			name:      "repeated failures in the window still read as degraded",
+			record:    Record{ModelName: "m", Monitored: true, LastProbeAt: 100, Recent: []bool{false, true, false, true, true}},
 			threshold: 2,
 			want:      StatusDegraded,
 		},
@@ -91,7 +99,12 @@ func TestApplyResultKeepsLastSuccessfulLatency(t *testing.T) {
 	assert.Equal(t, int64(900), recovered.LatencyMs)
 	assert.Equal(t, 0, recovered.ConsecutiveFailures, "成功后必须清零连续失败计数")
 	assert.Empty(t, recovered.LastError, "成功后必须清掉上一次的错误")
-	assert.Equal(t, StatusDegraded, recovered.Status(2), "刚恢复应显示波动而不是正常")
+	assert.Equal(
+		t,
+		StatusOperational,
+		recovered.Status(2),
+		"单次失败恢复后应回到可用，不能因为窗口里还留着那次失败继续显示波动",
+	)
 }
 
 // 环形记录必须有界，否则长期运行会让单条记录无限增长。

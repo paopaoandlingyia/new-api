@@ -43,6 +43,23 @@ const degradedIntervalMinutes = 2
 // 用原子标记而不是每次调度都读一遍存储，避免调度器频繁访问 Redis。
 var hasFailingModel atomic.Bool
 
+// quietChannelTestKey 标记这次 testChannel 调用来自探测，用于抑制它那条逐次打印
+// 完整 relay info 的日志。用 context 传递而不是包级开关，避免与人工/定时通道
+// 测试并发时互相影响。
+type quietChannelTestKey struct{}
+
+func withQuietChannelTest(ctx context.Context) context.Context {
+	return context.WithValue(ctx, quietChannelTestKey{}, true)
+}
+
+func isQuietChannelTest(ctx context.Context) bool {
+	if ctx == nil {
+		return false
+	}
+	quiet, _ := ctx.Value(quietChannelTestKey{}).(bool)
+	return quiet
+}
+
 type modelProbeSummary struct {
 	Probed      int `json:"probed"`
 	Operational int `json:"operational"`
@@ -184,7 +201,7 @@ func probeModel(ctx context.Context, timeout time.Duration, testUserID int, grou
 		return 0, 0, fmt.Sprintf("分组 %s 下没有可用渠道", group)
 	}
 
-	probeCtx, cancel := context.WithTimeout(ctx, timeout)
+	probeCtx, cancel := context.WithTimeout(withQuietChannelTest(ctx), timeout)
 	defer cancel()
 
 	start := time.Now()
