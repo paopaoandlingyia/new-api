@@ -25,3 +25,8 @@ dist-ssr
 *.sln
 *.sw?
 .tanstack/*
+
+# i18n:sync 每次运行的产物。_sync-report.json 是跟踪的汇总，
+# 逐语种的未翻译清单和 extras 只是本次运行的中间结果。
+src/i18n/locales/_reports/*.untranslated.json
+src/i18n/locales/_extras/

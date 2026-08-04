@@ -5239,6 +5239,21 @@
     "Channels are selected as this group would. The status light reflects this group only.": "Channels are selected as this group would. The status light reflects this group only.",
     "Consecutive failures before outage": "Consecutive failures before outage",
     "Below this count a model is shown as degraded.": "Below this count a model is shown as degraded.",
-    "Probe timeout (seconds)": "Probe timeout (seconds)"
+    "Probe timeout (seconds)": "Probe timeout (seconds)",
+    "Unstable": "Unstable",
+    "Unavailable": "Unavailable",
+    "Not monitored": "Not monitored",
+    "Awaiting first probe": "Awaiting first probe",
+    "Probe now": "Probe now",
+    "Probe started": "Probe started",
+    "Failed to start probe": "Failed to start probe",
+    "Probe latency": "Probe latency",
+    "Last probe": "Last probe",
+    "Last error": "Last error",
+    "Monitored": "Monitored",
+    "No probe results yet.": "No probe results yet.",
+    "Each round sends one real request per text model through normal routing. Latency here reflects a minimal request, not real generation speed.": "Each round sends one real request per text model through normal routing. Latency here reflects a minimal request, not real generation speed.",
+    "Probing is disabled. Enable it under System Settings to start collecting status.": "Probing is disabled. Enable it under System Settings to start collecting status.",
+    "every {{count}} min": "every {{count}} min"
   }
 }

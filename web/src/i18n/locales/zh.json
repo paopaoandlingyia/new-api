@@ -5239,6 +5239,21 @@
     "Channels are selected as this group would. The status light reflects this group only.": "按该分组的规则选取渠道。状态灯只代表这一个分组的可用性。",
     "Consecutive failures before outage": "判定故障的连续失败次数",
     "Below this count a model is shown as degraded.": "低于此次数时显示为波动。",
-    "Probe timeout (seconds)": "探测超时（秒）"
+    "Probe timeout (seconds)": "探测超时（秒）",
+    "Unstable": "波动",
+    "Unavailable": "不可用",
+    "Not monitored": "不监测",
+    "Awaiting first probe": "等待首次探测",
+    "Probe now": "立即探测",
+    "Probe started": "探测已启动",
+    "Failed to start probe": "启动探测失败",
+    "Probe latency": "探测延迟",
+    "Last probe": "上次探测",
+    "Last error": "最近错误",
+    "Monitored": "纳入监测",
+    "No probe results yet.": "暂无探测结果。",
+    "Each round sends one real request per text model through normal routing. Latency here reflects a minimal request, not real generation speed.": "每轮对每个文本模型走正常选路发一次真实请求。这里的延迟对应的是极小请求，不代表真实生成速度。",
+    "Probing is disabled. Enable it under System Settings to start collecting status.": "探测已关闭。在系统设置中启用后才会开始采集状态。",
+    "every {{count}} min": "每 {{count}} 分钟"
   }
 }

@@ -22,12 +22,12 @@ import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Button } from '@/components/ui/button'
-import { getPerfMetricsSummary } from '@/features/performance-metrics/api'
+import { getModelProbeStatus } from '@/features/model-probe/api'
+import type { ModelProbePublicStatus } from '@/features/model-probe/types'
 
 import { DEFAULT_PRICING_PAGE_SIZE, DEFAULT_TOKEN_UNIT } from '../constants'
 import type { PricingModel, TokenUnit } from '../types'
 import { ModelCard } from './model-card'
-import type { ModelPerfBadgeData } from './model-perf-badge'
 
 export interface ModelCardGridProps {
   models: PricingModel[]
@@ -47,9 +47,11 @@ export function ModelCardGrid(props: ModelCardGridProps) {
   const totalPages = Math.max(1, Math.ceil(props.models.length / pageSize))
   const currentPage = Math.min(page, totalPages)
 
-  const perfQuery = useQuery({
-    queryKey: ['perf-metrics-summary', 24],
-    queryFn: () => getPerfMetricsSummary(24),
+  // 状态灯来自主动探测。模型广场刻意不再请求 /api/perf-metrics/summary：那份
+  // 数据由真实用户流量派生，公开它等于公开各模型的使用情况。
+  const probeQuery = useQuery({
+    queryKey: ['model-probe-status'],
+    queryFn: getModelProbeStatus,
     staleTime: 60 * 1000,
     retry: false,
   })
@@ -59,13 +61,13 @@ export function ModelCardGrid(props: ModelCardGridProps) {
     return props.models.slice(start, start + pageSize)
   }, [currentPage, pageSize, props.models])
 
-  const perfMap = useMemo(() => {
-    const map = new Map<string, ModelPerfBadgeData>()
-    for (const model of perfQuery.data?.data?.models ?? []) {
-      map.set(model.model_name, model)
+  const probeMap = useMemo(() => {
+    const map = new Map<string, ModelProbePublicStatus>()
+    for (const status of probeQuery.data?.data?.statuses ?? []) {
+      map.set(status.model_name, status)
     }
     return map
-  }, [perfQuery.data])
+  }, [probeQuery.data])
 
   if (props.models.length === 0) {
     return null
@@ -83,7 +85,7 @@ export function ModelCardGrid(props: ModelCardGridProps) {
             usdExchangeRate={props.usdExchangeRate}
             showRechargePrice={props.showRechargePrice}
             selectedGroup={props.selectedGroup}
-            perf={perfMap.get(model.model_name || '')}
+            probeStatus={probeMap.get(model.model_name || '')}
             onClick={() => props.onModelClick(model.model_name || '')}
           />
         ))}

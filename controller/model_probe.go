@@ -78,6 +78,23 @@ func (modelProbeHandler) Run(ctx context.Context, task *model.SystemTask, runner
 	finishSystemTaskHandler(task, runnerID, model.SystemTaskStatusSucceeded, summary, nil)
 }
 
+// EnqueueModelProbeOnStartup 在启动时补一轮探测。
+//
+// 调度器只在"距上次任务超过一个间隔"时才建新任务，而没有 Redis 时探测状态存在
+// 进程内存里、重启即清空。两者叠加会让重启后的状态页空白最长一个探测间隔。这里
+// 在存储为空时主动入队一次，把空窗压到一轮探测的耗时。
+func EnqueueModelProbeOnStartup() {
+	if !model_probe_setting.GetSetting().Enabled {
+		return
+	}
+	if len(modelprobe.LoadAll()) > 0 {
+		return
+	}
+	if _, _, err := service.EnqueueSystemTask(model.SystemTaskTypeModelProbe, nil); err != nil {
+		common.SysError("model probe: failed to enqueue startup probe: " + err.Error())
+	}
+}
+
 // runModelProbeTask 执行一轮全量探测：对探测分组下的每个文本模型发一次真实请求，
 // 把结果写入 modelprobe 存储，并清理已经下线的模型。
 func runModelProbeTask(ctx context.Context, report func(processed, total int)) (modelProbeSummary, error) {

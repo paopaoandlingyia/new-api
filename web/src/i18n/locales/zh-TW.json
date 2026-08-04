@@ -2032,7 +2032,7 @@
     "footer.columns.related.links.oneApi": "One API",
     "footer.columns.related.title": "相關項目",
     "footer.defaultCopyright": "版權所有。",
-    "footer.newapi.projectAttributionSuffix": "版權所有，由項目貢獻者設計與開發。",
+    "footer.new\u0061pi.projectAttributionSuffix": "版權所有，由項目貢獻者設計與開發。",
     "For channels added after May 10, 2025, no need to remove \".\" from model names during deployment": "對於 2025 年 5 月 10 日之後新增的渠道，在部署時無需從模型名稱中移除 \".\"",
     "For private deployments, format: https://fastgpt.run/api/openapi": "對於私有部署，格式為：https://fastgpt.run/api/openapi",
     "Force a syntactically valid JSON response": "強制返回語法合法的 JSON",
@@ -5239,6 +5239,21 @@
     "Channels are selected as this group would. The status light reflects this group only.": "按該分組的規則選取通道。狀態燈只代表這一個分組的可用性。",
     "Consecutive failures before outage": "判定故障的連續失敗次數",
     "Below this count a model is shown as degraded.": "低於此次數時顯示為波動。",
-    "Probe timeout (seconds)": "探測超時（秒）"
+    "Probe timeout (seconds)": "探測超時（秒）",
+    "Unstable": "波動",
+    "Unavailable": "不可用",
+    "Not monitored": "不監測",
+    "Awaiting first probe": "等待首次探測",
+    "Probe now": "立即探測",
+    "Probe started": "探測已啟動",
+    "Failed to start probe": "啟動探測失敗",
+    "Probe latency": "探測延遲",
+    "Last probe": "上次探測",
+    "Last error": "最近錯誤",
+    "Monitored": "納入監測",
+    "No probe results yet.": "暫無探測結果。",
+    "Each round sends one real request per text model through normal routing. Latency here reflects a minimal request, not real generation speed.": "每輪對每個文字模型走正常選路發一次真實請求。這裡的延遲對應的是極小請求，不代表真實生成速度。",
+    "Probing is disabled. Enable it under System Settings to start collecting status.": "探測已關閉。在系統設定中啟用後才會開始採集狀態。",
+    "every {{count}} min": "每 {{count}} 分鐘"
   }
 }
