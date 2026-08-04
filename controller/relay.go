@@ -244,7 +244,8 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 		retryLogStr := fmt.Sprintf("重试：%s", strings.Trim(strings.Join(strings.Fields(fmt.Sprint(useChannel)), "->"), "[]"))
 		logger.LogInfo(c, retryLogStr)
 	}
-	if newAPIError != nil {
+	// 只有平台/上游责任的失败才计入模型可用性统计，调用方责任的失败不采样。
+	if perfmetrics.AttributeRelayFailure(newAPIError) == perfmetrics.AttributionPlatform {
 		gopool.Go(func() {
 			perfmetrics.RecordRelaySample(relayInfo, false, 0)
 		})
