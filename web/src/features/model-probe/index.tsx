@@ -22,10 +22,12 @@ import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
+import { CopyButton } from '@/components/copy-button'
 import {
   StaticDataTable,
   staticDataTableClassNames as tableStyles,
 } from '@/components/data-table'
+import { Dialog } from '@/components/dialog'
 import { Button } from '@/components/ui/button'
 import { Switch } from '@/components/ui/switch'
 import { updateSystemOption } from '@/features/system-settings/api'
@@ -46,6 +48,36 @@ function formatProbeLatency(ms: number | undefined, fallback: string) {
   if (!ms || ms <= 0) return fallback
   if (ms >= 1000) return `${(ms / 1000).toFixed(2)}s`
   return `${Math.round(ms)}ms`
+}
+
+function ProbeErrorCell({ error }: { error: string }) {
+  const { t } = useTranslation()
+
+  return (
+    <Dialog
+      title={t('Fail Reason Details')}
+      trigger={
+        <Button
+          type='button'
+          variant='ghost'
+          size='sm'
+          className='hover:text-foreground h-auto w-full max-w-full min-w-0 cursor-pointer justify-start overflow-hidden px-0 py-0 text-left font-normal hover:bg-transparent hover:underline'
+          aria-label={t('View details')}
+        >
+          <span className='text-muted-foreground block max-w-full min-w-0 truncate text-left text-xs'>
+            {error}
+          </span>
+        </Button>
+      }
+      contentClassName='max-sm:w-[calc(100vw-1rem)] sm:max-w-3xl'
+      bodyClassName='space-y-3'
+      footer={<CopyButton value={error} tooltip={t('Copy to clipboard')} />}
+    >
+      <pre className='bg-muted/50 max-h-[60vh] overflow-auto rounded-md p-3 font-mono text-xs break-words whitespace-pre-wrap'>
+        {error}
+      </pre>
+    </Dialog>
+  )
 }
 
 export function ModelProbe() {
@@ -132,7 +164,7 @@ export function ModelProbe() {
   return (
     <div className='space-y-4 p-4 sm:space-y-5 sm:p-6'>
       <div className='flex flex-wrap items-start justify-between gap-3'>
-        <div>
+        <div className='min-w-0'>
           <h2 className='flex items-center gap-2 text-lg font-semibold'>
             <HeartPulse className='size-5' />
             {t('Model availability probe')}
@@ -147,7 +179,7 @@ export function ModelProbe() {
           type='button'
           variant='outline'
           size='sm'
-          className='gap-1.5'
+          className='shrink-0 gap-1.5 whitespace-nowrap'
           onClick={() => runProbe.mutate()}
           disabled={
             runProbe.isPending ||
@@ -200,7 +232,7 @@ export function ModelProbe() {
 
       <StaticDataTable
         className='rounded-lg'
-        tableClassName='text-sm'
+        tableClassName='table-fixed text-sm'
         headerRowClassName={tableStyles.compactHeaderRow}
         data={statuses}
         getRowKey={(row: ModelProbeAdminStatus) => row.model_name}
@@ -259,25 +291,19 @@ export function ModelProbe() {
           {
             id: 'error',
             header: t('Last error'),
-            className: cn(tableStyles.compactHeaderCell, 'min-w-[220px]'),
-            cellClassName: tableStyles.compactCell,
+            className: cn(
+              tableStyles.compactHeaderCell,
+              'w-[min(40vw,32rem)] min-w-[220px]'
+            ),
+            cellClassName: cn(tableStyles.compactCell, 'whitespace-normal'),
             cell: (row: ModelProbeAdminStatus) =>
-              row.last_error ? (
-                <span
-                  title={row.last_error}
-                  className='text-muted-foreground line-clamp-2 text-xs'
-                >
-                  {row.last_error}
-                </span>
-              ) : (
-                '—'
-              ),
+              row.last_error ? <ProbeErrorCell error={row.last_error} /> : '—',
           },
           {
             id: 'monitored',
             header: t('Monitored'),
-            className: tableStyles.compactHeaderCell,
-            cellClassName: tableStyles.compactCell,
+            className: cn(tableStyles.compactHeaderCell, 'w-24'),
+            cellClassName: cn(tableStyles.compactCell, 'w-24'),
             cell: (row: ModelProbeAdminStatus) => (
               <Switch
                 checked={(setting?.probed_models ?? []).includes(
