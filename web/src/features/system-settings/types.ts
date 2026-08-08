@@ -362,11 +362,6 @@ export type OperationsSettings = {
   'perf_metrics_setting.flush_interval': number
   'perf_metrics_setting.bucket_time': 'hour' | 'minute' | '5min'
   'perf_metrics_setting.retention_days': number
-  'model_probe_setting.enabled': boolean
-  'model_probe_setting.interval_minutes': number
-  'model_probe_setting.group': string
-  'model_probe_setting.outage_threshold': number
-  'model_probe_setting.timeout_seconds': number
 }
 
 export type SecuritySettings = {

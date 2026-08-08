@@ -20,7 +20,6 @@ import { ChevronRight, Copy } from 'lucide-react'
 import { memo, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import type { ModelProbePublicStatus } from '@/features/model-probe/types'
 import { useCopyToClipboard } from '@/hooks/use-copy-to-clipboard'
 import { getLobeIcon } from '@/lib/lobe-icon'
 import { cn } from '@/lib/utils'
@@ -35,7 +34,6 @@ import { isTokenBasedModel } from '../lib/model-helpers'
 import { formatPrice, formatRequestPrice } from '../lib/price'
 import type { PricingModel, TokenUnit } from '../types'
 import { ModelBillingModeBadge } from './model-billing-mode-badge'
-import { ModelStatusBadge } from './model-status-badge'
 
 export interface ModelCardProps {
   model: PricingModel
@@ -45,10 +43,6 @@ export interface ModelCardProps {
   tokenUnit?: TokenUnit
   showRechargePrice?: boolean
   selectedGroup?: string
-  // 状态灯改由主动探测驱动。上游的流量派生指标（model-perf-badge）不再在卡片上
-  // 渲染：它会把用户的错误请求算成模型故障，且展示本身泄露使用情况。相关组件
-  // 与接口刻意保留未删，避免每次同步上游都产生 delete/modify 冲突。
-  probeStatus?: ModelProbePublicStatus
 }
 
 export const ModelCard = memo(function ModelCard(props: ModelCardProps) {
@@ -249,8 +243,7 @@ export const ModelCard = memo(function ModelCard(props: ModelCardProps) {
         {props.model.description || t('No description available.')}
       </p>
 
-      {/* Footer: left metadata and right performance summary share row alignment */}
-      <div className='mt-2 grid grid-cols-[minmax(0,1fr)_auto] items-start gap-x-2 gap-y-1 sm:mt-4'>
+      <div className='mt-2 flex flex-col items-start gap-y-1 sm:mt-4'>
         <div className='flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1'>
           {primaryGroup && (
             <span className='text-muted-foreground text-sm font-medium'>
@@ -259,11 +252,6 @@ export const ModelCard = memo(function ModelCard(props: ModelCardProps) {
           )}
           <ModelBillingModeBadge model={props.model} />
         </div>
-        <ModelStatusBadge
-          status={props.probeStatus}
-          className='row-span-2 self-start'
-        />
-
         <div className='flex min-w-0 flex-wrap items-center gap-x-2.5 gap-y-0.5 sm:gap-x-3 sm:gap-y-1'>
           {bottomTags.map((item) => (
             <span key={item} className='text-muted-foreground/70 text-xs'>

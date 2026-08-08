@@ -18,7 +18,6 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { SystemBehaviorSection } from '../general/system-behavior-section'
 import { EmailSettingsSection } from '../integrations/email-settings-section'
-import { ModelProbeSettingsSection } from '../integrations/model-probe-settings-section'
 import { MonitoringSettingsSection } from '../integrations/monitoring-settings-section'
 import { WorkerSettingsSection } from '../integrations/worker-settings-section'
 import { LogSettingsSection } from '../maintenance/log-settings-section'
@@ -56,26 +55,6 @@ const OPERATIONS_SECTIONS = [
             settings['perf_metrics_setting.bucket_time'] ?? 'hour',
           'perf_metrics_setting.retention_days':
             settings['perf_metrics_setting.retention_days'] ?? 0,
-        }}
-      />
-    ),
-  },
-  {
-    id: 'model-probe',
-    titleKey: 'Model availability probe',
-    build: (settings: OperationsSettings) => (
-      <ModelProbeSettingsSection
-        defaultValues={{
-          'model_probe_setting.enabled':
-            settings['model_probe_setting.enabled'] ?? false,
-          'model_probe_setting.interval_minutes':
-            settings['model_probe_setting.interval_minutes'] ?? 10,
-          'model_probe_setting.group':
-            settings['model_probe_setting.group'] ?? 'default',
-          'model_probe_setting.outage_threshold':
-            settings['model_probe_setting.outage_threshold'] ?? 2,
-          'model_probe_setting.timeout_seconds':
-            settings['model_probe_setting.timeout_seconds'] ?? 30,
         }}
       />
     ),
