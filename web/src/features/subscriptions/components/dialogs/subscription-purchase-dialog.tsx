@@ -85,12 +85,17 @@ export function SubscriptionPurchaseDialog(props: Props) {
   const plan = props.plan?.plan
   if (!plan) return null
 
-  const hasStripe = props.enableStripe && !!plan.stripe_price_id
-  const hasCreem = props.enableCreem && !!plan.creem_product_id
+  const balanceOnly = plan.balance_only === true
+  const hasStripe = !balanceOnly && props.enableStripe && !!plan.stripe_price_id
+  const hasCreem = !balanceOnly && props.enableCreem && !!plan.creem_product_id
   const hasWaffoPancake =
-    props.enableWaffoPancake && !!plan.waffo_pancake_product_id
+    !balanceOnly &&
+    props.enableWaffoPancake &&
+    !!plan.waffo_pancake_product_id
   const hasEpay =
-    props.enableOnlineTopUp && (props.epayMethods || []).length > 0
+    !balanceOnly &&
+    props.enableOnlineTopUp &&
+    (props.epayMethods || []).length > 0
   const hasAnyPayment = hasStripe || hasCreem || hasWaffoPancake || hasEpay
   const selectedEpayMethodLabel =
     (props.epayMethods || []).find((m) => m.type === selectedEpayMethod)
@@ -405,12 +410,10 @@ export function SubscriptionPurchaseDialog(props: Props) {
             {hasEpay && (
               <div className='grid grid-cols-[minmax(0,1fr)_auto] gap-2'>
                 <Select
-                  items={[
-                    ...(props.epayMethods || []).map((m) => ({
-                      value: m.type,
-                      label: m.name || m.type,
-                    })),
-                  ]}
+                  items={(props.epayMethods || []).map((m) => ({
+                    value: m.type,
+                    label: m.name || m.type,
+                  }))}
                   value={selectedEpayMethod}
                   onValueChange={(v) => v !== null && setSelectedEpayMethod(v)}
                   disabled={limitReached}

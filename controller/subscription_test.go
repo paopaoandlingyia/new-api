@@ -8,12 +8,46 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/gin-gonic/gin"
 	"github.com/glebarez/sqlite"
 	"github.com/stretchr/testify/require"
 	"gorm.io/gorm"
 )
+
+func TestRejectBalanceOnlySubscription(t *testing.T) {
+	tests := []struct {
+		name       string
+		plan       *model.SubscriptionPlan
+		wantReject bool
+	}{
+		{name: "regular plan allows external payment", plan: &model.SubscriptionPlan{}, wantReject: false},
+		{name: "balance-only plan rejects external payment", plan: &model.SubscriptionPlan{BalanceOnly: true}, wantReject: true},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			recorder := httptest.NewRecorder()
+			ctx, _ := gin.CreateTestContext(recorder)
+
+			rejected := rejectBalanceOnlySubscription(ctx, test.plan)
+
+			require.Equal(t, test.wantReject, rejected)
+			if !test.wantReject {
+				require.Equal(t, http.StatusOK, recorder.Code)
+				return
+			}
+			var response struct {
+				Success bool   `json:"success"`
+				Message string `json:"message"`
+			}
+			require.NoError(t, common.Unmarshal(recorder.Body.Bytes(), &response))
+			require.False(t, response.Success)
+			require.Equal(t, "该套餐仅支持余额购买", response.Message)
+		})
+	}
+}
 
 func TestAdminCreateSubscriptionPlanEnabledDefault(t *testing.T) {
 	confirmPaymentComplianceForTest(t)

@@ -36,6 +36,7 @@ export const subscriptionPlanSchema = z.object({
   enabled: z.boolean(),
   sort_order: z.number(),
   allow_balance_pay: z.boolean().optional().default(true),
+  balance_only: z.boolean().optional().default(false),
   allow_wallet_overflow: z.boolean().optional().default(true),
   max_purchase_per_user: z.number(),
   max_active_per_user: z.number().optional().default(0),

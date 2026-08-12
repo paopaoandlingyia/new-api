@@ -161,6 +161,7 @@ type SubscriptionPlan struct {
 	SortOrder int  `json:"sort_order" gorm:"type:int;default:0"`
 
 	AllowBalancePay *bool `json:"allow_balance_pay"`
+	BalanceOnly     bool  `json:"balance_only" gorm:"type:boolean"`
 
 	// Allow falling back to wallet balance after subscription quota is exhausted (empty = true)
 	AllowWalletOverflow *bool `json:"allow_wallet_overflow"`

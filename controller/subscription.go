@@ -27,6 +27,14 @@ type SubscriptionBalancePayRequest struct {
 	PlanId int `json:"plan_id"`
 }
 
+func rejectBalanceOnlySubscription(c *gin.Context, plan *model.SubscriptionPlan) bool {
+	if plan == nil || !plan.BalanceOnly {
+		return false
+	}
+	common.ApiErrorMsg(c, "该套餐仅支持余额购买")
+	return true
+}
+
 // ---- User APIs ----
 
 func GetSubscriptionPlans(c *gin.Context) {
@@ -319,6 +327,7 @@ func AdminUpdateSubscriptionPlan(c *gin.Context) {
 			"waffo_pancake_product_id":   plan.WaffoPancakeProductId,
 			"max_purchase_per_user":      plan.MaxPurchasePerUser,
 			"max_active_per_user":        plan.MaxActivePerUser,
+			"balance_only":               plan.BalanceOnly,
 			"total_amount":               plan.TotalAmount,
 			"upgrade_group":              plan.UpgradeGroup,
 			"downgrade_group":            plan.DowngradeGroup,
