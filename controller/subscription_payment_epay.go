@@ -62,6 +62,10 @@ func SubscriptionRequestEpay(c *gin.Context) {
 			return
 		}
 	}
+	if err := model.CheckSubscriptionActiveLimit(userId, plan); err != nil {
+		common.ApiError(c, err)
+		return
+	}
 
 	callBackAddress := service.GetCallbackAddress()
 	returnUrl, err := url.Parse(callBackAddress + "/api/subscription/epay/return")

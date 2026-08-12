@@ -75,6 +75,10 @@ func SubscriptionRequestStripePay(c *gin.Context) {
 			return
 		}
 	}
+	if err := model.CheckSubscriptionActiveLimit(userId, plan); err != nil {
+		common.ApiError(c, err)
+		return
+	}
 
 	reference := fmt.Sprintf("sub-stripe-ref-%d-%d-%s", user.Id, time.Now().UnixMilli(), randstr.String(4))
 	referenceId := "sub_ref_" + common.Sha1([]byte(reference))

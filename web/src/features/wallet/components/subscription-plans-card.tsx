@@ -207,6 +207,16 @@ export function SubscriptionPlansCard({
     return map
   }, [allSubscriptions])
 
+  const planActiveCountMap = useMemo(() => {
+    const map = new Map<number, number>()
+    for (const sub of activeSubscriptions) {
+      const planId = sub?.subscription?.plan_id
+      if (!planId) continue
+      map.set(planId, (map.get(planId) || 0) + 1)
+    }
+    return map
+  }, [activeSubscriptions])
+
   useEffect(() => {
     onAvailabilityChange?.(isAvailable)
   }, [isAvailable, onAvailabilityChange])
@@ -533,6 +543,19 @@ export function SubscriptionPlansCard({
               const limit = Number(plan.max_purchase_per_user || 0)
               const count = planPurchaseCountMap.get(plan.id) || 0
               const reached = limit > 0 && count >= limit
+              const activeLimit = Number(plan.max_active_per_user || 0)
+              const activeCount = planActiveCountMap.get(plan.id) || 0
+              let blockedLabel = ''
+              let blockedTip = ''
+              if (reached) {
+                blockedLabel = t('Limit Reached')
+                blockedTip = `${t('Purchase limit reached')} (${count}/${limit})`
+              } else if (activeLimit > 0 && activeCount >= activeLimit) {
+                blockedLabel = t('Already Subscribed')
+                blockedTip = t(
+                  'This plan is already active. You can purchase it again after it expires.'
+                )
+              }
 
               const benefits = [
                 `${t('Validity Period')}: ${formatDuration(plan, t)}`,
@@ -598,16 +621,14 @@ export function SubscriptionPlansCard({
 
                     <Separator className='mb-3' />
 
-                    {reached ? (
+                    {blockedLabel ? (
                       <Tooltip>
                         <TooltipTrigger render={<div />}>
                           <Button variant='outline' className='w-full' disabled>
-                            {t('Limit Reached')}
+                            {blockedLabel}
                           </Button>
                         </TooltipTrigger>
-                        <TooltipContent>
-                          {t('Purchase limit reached')} ({count}/{limit})
-                        </TooltipContent>
+                        <TooltipContent>{blockedTip}</TooltipContent>
                       </Tooltip>
                     ) : (
                       <Button

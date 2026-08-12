@@ -81,6 +81,10 @@ func SubscriptionRequestCreemPay(c *gin.Context) {
 			return
 		}
 	}
+	if err := model.CheckSubscriptionActiveLimit(userId, plan); err != nil {
+		common.ApiError(c, err)
+		return
+	}
 
 	reference := "sub-creem-ref-" + randstr.String(6)
 	referenceId := "sub_ref_" + common.Sha1([]byte(reference+time.Now().String()+user.Username))

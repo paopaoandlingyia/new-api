@@ -74,6 +74,10 @@ func SubscriptionRequestWaffoPancakePay(c *gin.Context) {
 			return
 		}
 	}
+	if err := model.CheckSubscriptionActiveLimit(userId, plan); err != nil {
+		common.ApiError(c, err)
+		return
+	}
 
 	// WAFFO_PANCAKE_SUB- prefix (vs. wallet's WAFFO_PANCAKE-) drives webhook
 	// dispatch in WaffoPancakeWebhook.

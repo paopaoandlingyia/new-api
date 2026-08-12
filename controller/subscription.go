@@ -192,6 +192,10 @@ func AdminCreateSubscriptionPlan(c *gin.Context) {
 		common.ApiErrorMsg(c, "购买上限不能为负数")
 		return
 	}
+	if plan.MaxActivePerUser < 0 {
+		common.ApiErrorMsg(c, "同时生效上限不能为负数")
+		return
+	}
 	if plan.TotalAmount < 0 {
 		common.ApiErrorMsg(c, "总额度不能为负数")
 		return
@@ -270,6 +274,10 @@ func AdminUpdateSubscriptionPlan(c *gin.Context) {
 		common.ApiErrorMsg(c, "购买上限不能为负数")
 		return
 	}
+	if plan.MaxActivePerUser < 0 {
+		common.ApiErrorMsg(c, "同时生效上限不能为负数")
+		return
+	}
 	if plan.TotalAmount < 0 {
 		common.ApiErrorMsg(c, "总额度不能为负数")
 		return
@@ -310,6 +318,7 @@ func AdminUpdateSubscriptionPlan(c *gin.Context) {
 			"creem_product_id":           plan.CreemProductId,
 			"waffo_pancake_product_id":   plan.WaffoPancakeProductId,
 			"max_purchase_per_user":      plan.MaxPurchasePerUser,
+			"max_active_per_user":        plan.MaxActivePerUser,
 			"total_amount":               plan.TotalAmount,
 			"upgrade_group":              plan.UpgradeGroup,
 			"downgrade_group":            plan.DowngradeGroup,

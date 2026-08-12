@@ -172,6 +172,9 @@ type SubscriptionPlan struct {
 	// Max purchases per user (0 = unlimited)
 	MaxPurchasePerUser int `json:"max_purchase_per_user" gorm:"type:int;default:0"`
 
+	// Max concurrently active subscriptions per user for this plan (0 = unlimited)
+	MaxActivePerUser int `json:"max_active_per_user" gorm:"type:int;default:0"`
+
 	// Upgrade user group after purchase (empty = no change)
 	UpgradeGroup string `json:"upgrade_group" gorm:"type:varchar(64);default:''"`
 
@@ -490,6 +493,9 @@ func CreateUserSubscriptionFromPlanTx(tx *gorm.DB, userId int, plan *Subscriptio
 	}
 	if userId <= 0 {
 		return nil, errors.New("invalid user id")
+	}
+	if err := EnforceSubscriptionActiveLimitTx(tx, userId, plan); err != nil {
+		return nil, err
 	}
 	if plan.MaxPurchasePerUser > 0 {
 		var count int64
