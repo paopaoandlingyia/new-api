@@ -22,8 +22,12 @@ import { useTranslation } from 'react-i18next'
 
 import { Button } from '@/components/ui/button'
 
-import { DEFAULT_PRICING_PAGE_SIZE, DEFAULT_TOKEN_UNIT } from '../constants'
-import type { PricingModel, TokenUnit } from '../types'
+import {
+  DEFAULT_PRICING_PAGE_SIZE,
+  DEFAULT_TOKEN_UNIT,
+  FILTER_ALL,
+} from '../constants'
+import type { GroupAvailability, PricingModel, TokenUnit } from '../types'
 import { ModelCard } from './model-card'
 
 export interface ModelCardGridProps {
@@ -34,6 +38,7 @@ export interface ModelCardGridProps {
   tokenUnit?: TokenUnit
   showRechargePrice?: boolean
   selectedGroup?: string
+  availability?: Record<string, GroupAvailability>
 }
 
 export function ModelCardGrid(props: ModelCardGridProps) {
@@ -56,18 +61,32 @@ export function ModelCardGrid(props: ModelCardGridProps) {
   return (
     <div className='space-y-4 sm:space-y-5'>
       <div className='grid grid-cols-1 gap-3 sm:gap-4 md:grid-cols-2 lg:grid-cols-3'>
-        {pagedModels.map((model) => (
-          <ModelCard
-            key={model.id ?? model.model_name}
-            model={model}
-            tokenUnit={tokenUnit}
-            priceRate={props.priceRate}
-            usdExchangeRate={props.usdExchangeRate}
-            showRechargePrice={props.showRechargePrice}
-            selectedGroup={props.selectedGroup}
-            onClick={() => props.onModelClick(model.model_name || '')}
-          />
-        ))}
+        {pagedModels.map((model) => {
+          const selectedAvailabilityGroup =
+            props.selectedGroup && props.selectedGroup !== FILTER_ALL
+              ? props.selectedGroup
+              : model.enable_groups.find((group) => props.availability?.[group])
+          const groupAvailability = selectedAvailabilityGroup
+            ? props.availability?.[selectedAvailabilityGroup]
+            : undefined
+          const availabilityStatus =
+            groupAvailability?.models?.[model.model_name]?.status ??
+            groupAvailability?.status
+
+          return (
+            <ModelCard
+              key={model.id ?? model.model_name}
+              model={model}
+              tokenUnit={tokenUnit}
+              priceRate={props.priceRate}
+              usdExchangeRate={props.usdExchangeRate}
+              showRechargePrice={props.showRechargePrice}
+              selectedGroup={props.selectedGroup}
+              availabilityStatus={availabilityStatus}
+              onClick={() => props.onModelClick(model.model_name || '')}
+            />
+          )
+        })}
       </div>
 
       {totalPages > 1 && (

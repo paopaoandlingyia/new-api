@@ -16,21 +16,40 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { api } from '@/lib/api'
+import { useTranslation } from 'react-i18next'
 
-import type { ModelAvailabilityData, PricingData } from './types'
+import { StatusBadge } from '@/components/status-badge'
 
-// ----------------------------------------------------------------------------
-// Pricing APIs
-// ----------------------------------------------------------------------------
+import type { AvailabilityStatus } from '../types'
 
-// Get model pricing data
-export async function getPricing(): Promise<PricingData> {
-  const res = await api.get('/api/pricing')
-  return res.data
-}
+const variants = {
+  available: 'success',
+  unavailable: 'danger',
+  maintenance: 'warning',
+} as const
 
-export async function getModelAvailability(): Promise<ModelAvailabilityData> {
-  const res = await api.get('/api/model-availability')
-  return res.data
+const labels = {
+  available: 'Available',
+  unavailable: 'Unavailable',
+  maintenance: 'Maintenance',
+} as const
+
+export function ModelAvailabilityBadge({
+  status,
+}: {
+  status?: AvailabilityStatus
+}) {
+  const { t } = useTranslation()
+  if (!status) return null
+
+  return (
+    <StatusBadge
+      type='text'
+      showDot
+      copyable={false}
+      variant={variants[status]}
+      label={t(labels[status])}
+      className='text-xs'
+    />
+  )
 }

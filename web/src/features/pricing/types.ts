@@ -99,6 +99,20 @@ export type PricingData = {
   auto_groups: string[]
 }
 
+export type AvailabilityStatus = 'available' | 'unavailable' | 'maintenance'
+
+export type GroupAvailability = {
+  status: AvailabilityStatus
+  models?: Record<string, { status: AvailabilityStatus }>
+}
+
+export type ModelAvailabilityData = {
+  success: boolean
+  data: {
+    groups: Record<string, GroupAvailability>
+  }
+}
+
 export type TokenUnit = 'M' | 'K'
 export type PriceType =
   | 'input'

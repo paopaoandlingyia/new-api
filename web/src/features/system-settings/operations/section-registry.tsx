@@ -55,6 +55,10 @@ const OPERATIONS_SECTIONS = [
             settings['perf_metrics_setting.bucket_time'] ?? 'hour',
           'perf_metrics_setting.retention_days':
             settings['perf_metrics_setting.retention_days'] ?? 0,
+          'model_availability_setting.enabled':
+            settings['model_availability_setting.enabled'] ?? false,
+          'model_availability_setting.sources':
+            settings['model_availability_setting.sources'] ?? '[]',
         }}
       />
     ),

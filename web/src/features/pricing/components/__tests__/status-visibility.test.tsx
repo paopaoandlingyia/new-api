@@ -62,6 +62,7 @@ await i18n.use(initReactI18next).init({
         Input: 'Input',
         Output: 'Output',
         'Token-based': 'Token-based',
+        Available: 'Available',
       },
     },
   },
@@ -108,6 +109,36 @@ describe('pricing model card status visibility', () => {
       container.textContent,
       /Available|Unstable|Unavailable|Not monitored/
     )
+
+    await act(async () => root.unmount())
+    container.remove()
+  })
+
+  test('shows an upstream-declared availability status when provided', async () => {
+    const container = document.createElement('div')
+    document.body.append(container)
+    const root = createRoot(container)
+
+    await act(async () => {
+      root.render(
+        <I18nextProvider i18n={i18n}>
+          <ModelCard
+            model={{
+              id: 1,
+              model_name: 'example-model',
+              quota_type: 0,
+              model_ratio: 1,
+              completion_ratio: 1,
+              enable_groups: ['default'],
+            }}
+            availabilityStatus='available'
+            onClick={() => {}}
+          />
+        </I18nextProvider>
+      )
+    })
+
+    assert.match(container.textContent, /Available/)
 
     await act(async () => root.unmount())
     container.remove()

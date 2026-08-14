@@ -21,7 +21,7 @@ import { useMemo } from 'react'
 
 import { useStatus } from '@/hooks/use-status'
 
-import { getPricing } from '../api'
+import { getModelAvailability, getPricing } from '../api'
 
 export function usePricingData() {
   const { status } = useStatus()
@@ -30,6 +30,11 @@ export function usePricingData() {
     queryKey: ['pricing'],
     queryFn: getPricing,
     staleTime: 5 * 60 * 1000,
+  })
+  const { data: availabilityData } = useQuery({
+    queryKey: ['model-availability'],
+    queryFn: getModelAvailability,
+    staleTime: 30 * 1000,
   })
 
   // Ensure rates never reach zero to prevent division errors
@@ -69,6 +74,7 @@ export function usePricingData() {
     usableGroup: data?.usable_group ?? {},
     endpointMap: data?.supported_endpoint ?? {},
     autoGroups: data?.auto_groups ?? [],
+    availability: availabilityData?.data.groups ?? {},
     isLoading,
     error,
     refetch,

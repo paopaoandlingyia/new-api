@@ -32,7 +32,8 @@ import {
 import { parseTags } from '../lib/filters'
 import { isTokenBasedModel } from '../lib/model-helpers'
 import { formatPrice, formatRequestPrice } from '../lib/price'
-import type { PricingModel, TokenUnit } from '../types'
+import type { AvailabilityStatus, PricingModel, TokenUnit } from '../types'
+import { ModelAvailabilityBadge } from './model-availability-badge'
 import { ModelBillingModeBadge } from './model-billing-mode-badge'
 
 export interface ModelCardProps {
@@ -43,6 +44,7 @@ export interface ModelCardProps {
   tokenUnit?: TokenUnit
   showRechargePrice?: boolean
   selectedGroup?: string
+  availabilityStatus?: AvailabilityStatus
 }
 
 export const ModelCard = memo(function ModelCard(props: ModelCardProps) {
@@ -251,6 +253,7 @@ export const ModelCard = memo(function ModelCard(props: ModelCardProps) {
             </span>
           )}
           <ModelBillingModeBadge model={props.model} />
+          <ModelAvailabilityBadge status={props.availabilityStatus} />
         </div>
         <div className='flex min-w-0 flex-wrap items-center gap-x-2.5 gap-y-0.5 sm:gap-x-3 sm:gap-y-1'>
           {bottomTags.map((item) => (
