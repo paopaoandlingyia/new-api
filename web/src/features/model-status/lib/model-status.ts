@@ -16,9 +16,22 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
+import { toIntlLocale } from '@/i18n/languages'
+
 import type { ModelStatusItem } from '../types'
 
 export type VisibilityFilter = 'all' | 'published' | 'hidden'
+
+export function formatModelStatusUpdatedAt(
+  timestamp: number | undefined,
+  language: string
+) {
+  if (!timestamp) return null
+  return new Intl.DateTimeFormat(toIntlLocale(language), {
+    dateStyle: 'medium',
+    timeStyle: 'short',
+  }).format(new Date(timestamp * 1000))
+}
 
 export function filterModelStatuses(
   models: ModelStatusItem[],

@@ -35,19 +35,15 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { getLobeIcon } from '@/lib/lobe-icon'
 
 import { getPublishedModelStatuses } from './api'
-import { countModelStatusIssues, filterModelStatuses } from './lib/model-status'
+import {
+  countModelStatusIssues,
+  filterModelStatuses,
+  formatModelStatusUpdatedAt,
+} from './lib/model-status'
 import { ModelStatusBadge } from './status-badge'
 import type { ModelStatusItem } from './types'
 
 const EMPTY_MODELS: ModelStatusItem[] = []
-
-function formatUpdatedAt(timestamp: number | undefined, locale: string) {
-  if (!timestamp) return null
-  return new Intl.DateTimeFormat(locale, {
-    dateStyle: 'medium',
-    timeStyle: 'short',
-  }).format(new Date(timestamp * 1000))
-}
 
 export function ModelStatus() {
   const { t, i18n } = useTranslation()
@@ -148,7 +144,10 @@ export function ModelStatus() {
 function ModelStatusCard(props: { model: ModelStatusItem; locale: string }) {
   const { t } = useTranslation()
   const icon = props.model.icon ? getLobeIcon(props.model.icon, 32) : null
-  const updatedAt = formatUpdatedAt(props.model.updated_at, props.locale)
+  const updatedAt = formatModelStatusUpdatedAt(
+    props.model.updated_at,
+    props.locale
+  )
 
   return (
     <Card className='min-h-40' size='sm'>

@@ -22,6 +22,7 @@ import { describe, test } from 'node:test'
 import {
   countModelStatusIssues,
   filterModelStatuses,
+  formatModelStatusUpdatedAt,
 } from '../lib/model-status'
 import type { ModelStatusItem } from '../types'
 
@@ -53,5 +54,10 @@ describe('manual model status filtering', () => {
       unavailable: 1,
       maintenance: 1,
     })
+  })
+
+  test('formats update times with the interface Chinese language codes', () => {
+    assert.doesNotThrow(() => formatModelStatusUpdatedAt(1, 'zhCN'))
+    assert.doesNotThrow(() => formatModelStatusUpdatedAt(1, 'zhTW'))
   })
 })
