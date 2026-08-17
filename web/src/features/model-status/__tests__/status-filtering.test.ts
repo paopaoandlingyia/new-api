@@ -16,8 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import assert from 'node:assert/strict'
-import { describe, test } from 'node:test'
+import { describe, expect, test } from 'vitest'
 
 import {
   countModelStatusIssues,
@@ -34,30 +33,26 @@ const models: ModelStatusItem[] = [
 
 describe('manual model status filtering', () => {
   test('combines publication and search filters without changing source data', () => {
-    assert.deepEqual(
+    expect(
       filterModelStatuses(models, 'claude', 'published').map(
         (model) => model.model_name
-      ),
-      ['claude-sonnet', 'claude-opus']
-    )
-    assert.deepEqual(
-      filterModelStatuses(models, '', 'hidden').map(
-        (model) => model.model_name
-      ),
-      ['gpt-5']
-    )
-    assert.equal(models.length, 3)
+      )
+    ).toEqual(['claude-sonnet', 'claude-opus'])
+    expect(
+      filterModelStatuses(models, '', 'hidden').map((model) => model.model_name)
+    ).toEqual(['gpt-5'])
+    expect(models).toHaveLength(3)
   })
 
   test('counts unavailable and maintenance states independently', () => {
-    assert.deepEqual(countModelStatusIssues(models), {
+    expect(countModelStatusIssues(models)).toEqual({
       unavailable: 1,
       maintenance: 1,
     })
   })
 
   test('formats update times with the interface Chinese language codes', () => {
-    assert.doesNotThrow(() => formatModelStatusUpdatedAt(1, 'zhCN'))
-    assert.doesNotThrow(() => formatModelStatusUpdatedAt(1, 'zhTW'))
+    expect(() => formatModelStatusUpdatedAt(1, 'zhCN')).not.toThrow()
+    expect(() => formatModelStatusUpdatedAt(1, 'zhTW')).not.toThrow()
   })
 })

@@ -16,10 +16,8 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import assert from 'node:assert/strict'
-import { after, describe, test } from 'node:test'
-
 import { Window } from 'happy-dom'
+import { afterAll, describe, expect, test, vi } from 'vitest'
 
 const domWindow = new Window()
 const domGlobals = [
@@ -72,8 +70,12 @@ const reactTestGlobals = globalThis as typeof globalThis & {
 }
 reactTestGlobals.IS_REACT_ACT_ENVIRONMENT = true
 
+vi.mock('@/lib/lobe-icon', () => ({
+  getLobeIcon: () => null,
+}))
+
 describe('pricing model card status visibility', () => {
-  after(() => {
+  afterAll(() => {
     domWindow.close()
   })
 
@@ -102,10 +104,9 @@ describe('pricing model card status visibility', () => {
       )
     })
 
-    assert.match(container.textContent, /example-model/)
-    assert.match(container.textContent, /default/)
-    assert.doesNotMatch(
-      container.textContent,
+    expect(container.textContent).toMatch(/example-model/)
+    expect(container.textContent).toMatch(/default/)
+    expect(container.textContent).not.toMatch(
       /Available|Unstable|Unavailable|Not monitored/
     )
 

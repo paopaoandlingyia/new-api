@@ -16,8 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import assert from 'node:assert/strict'
-import { describe, test } from 'node:test'
+import { describe, expect, test } from 'vitest'
 
 import { buildSearchParams } from '../filter'
 import { buildApiParams } from '../utils'
@@ -29,7 +28,7 @@ describe('upstream account log filter', () => {
       'common'
     )
 
-    assert.equal(searchParams.upstreamAccount, 'friend-a')
+    expect(searchParams.upstreamAccount).toBe('friend-a')
   })
 
   test('sends the account filter only for administrators', () => {
@@ -46,7 +45,7 @@ describe('upstream account log filter', () => {
       isAdmin: false,
     })
 
-    assert.equal(adminParams.upstream_account, 'friend-a')
-    assert.equal(userParams.upstream_account, undefined)
+    expect(adminParams.upstream_account).toBe('friend-a')
+    expect(userParams.upstream_account).toBeUndefined()
   })
 })

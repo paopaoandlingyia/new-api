@@ -16,22 +16,20 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import assert from 'node:assert/strict'
-import { describe, test } from 'node:test'
+import { describe, expect, test } from 'vitest'
 
 import { parseHeaderNavModules } from '../nav-modules'
 
 describe('model status navigation access', () => {
   test('is public by default and preserves explicit access controls', () => {
-    assert.deepEqual(parseHeaderNavModules('').modelStatus, {
+    expect(parseHeaderNavModules('').modelStatus).toEqual({
       enabled: true,
       requireAuth: false,
     })
-    assert.deepEqual(
+    expect(
       parseHeaderNavModules(
         '{"modelStatus":{"enabled":false,"requireAuth":true}}'
-      ).modelStatus,
-      { enabled: false, requireAuth: true }
-    )
+      ).modelStatus
+    ).toEqual({ enabled: false, requireAuth: true })
   })
 })
