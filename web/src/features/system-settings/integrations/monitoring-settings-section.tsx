@@ -17,16 +17,12 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { zodResolver } from '@hookform/resolvers/zod'
-import { useQuery } from '@tanstack/react-query'
-import type { TFunction } from 'i18next'
-import { Plus, Trash2 } from 'lucide-react'
 import { useEffect, useMemo, useRef } from 'react'
-import { useFieldArray, useForm } from 'react-hook-form'
+import { useForm } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import * as z from 'zod'
 
-import { Button } from '@/components/ui/button'
 import {
   Form,
   FormControl,
@@ -46,7 +42,6 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { Switch } from '@/components/ui/switch'
-import { api } from '@/lib/api'
 
 import {
   SettingsForm,
@@ -65,38 +60,18 @@ const numericString = z.string().refine((value) => {
   return !Number.isNaN(Number(trimmed)) && Number(trimmed) >= 0
 }, 'Enter a non-negative number or leave empty')
 
-const createMonitoringSchema = (t: TFunction) =>
-  z.object({
-    QuotaRemindThreshold: numericString,
-    perf_metrics_setting: z.object({
-      enabled: z.boolean(),
-      flush_interval: z.coerce.number().min(1),
-      bucket_time: z.enum(['minute', '5min', 'hour']),
-      retention_days: z.coerce.number().min(0),
-    }),
-    model_availability_setting: z.object({
-      enabled: z.boolean(),
-      sources: z
-        .array(
-          z.object({
-            group: z.string().trim().min(1, t('Group is required')).max(128),
-            url: z
-              .string()
-              .trim()
-              .url(t('Enter a valid URL'))
-              .refine((value) => /^https?:\/\//i.test(value), {
-                message: t('URL must use HTTP or HTTPS'),
-              }),
-            token: z.string().max(4096),
-          })
-        )
-        .max(20),
-    }),
-  })
+const monitoringSchema = z.object({
+  QuotaRemindThreshold: numericString,
+  perf_metrics_setting: z.object({
+    enabled: z.boolean(),
+    flush_interval: z.coerce.number().min(1),
+    bucket_time: z.enum(['minute', '5min', 'hour']),
+    retention_days: z.coerce.number().min(0),
+  }),
+})
 
-type MonitoringSchema = ReturnType<typeof createMonitoringSchema>
-type MonitoringFormInput = z.input<MonitoringSchema>
-type MonitoringFormValues = z.output<MonitoringSchema>
+type MonitoringFormInput = z.input<typeof monitoringSchema>
+type MonitoringFormValues = z.output<typeof monitoringSchema>
 
 type FlatMonitoringDefaults = {
   QuotaRemindThreshold: string
@@ -104,8 +79,6 @@ type FlatMonitoringDefaults = {
   'perf_metrics_setting.flush_interval': number
   'perf_metrics_setting.bucket_time': 'minute' | '5min' | 'hour'
   'perf_metrics_setting.retention_days': number
-  'model_availability_setting.enabled': boolean
-  'model_availability_setting.sources': string
 }
 
 type MonitoringSettingsSectionProps = {
@@ -122,41 +95,7 @@ const buildFormDefaults = (
     bucket_time: defaults['perf_metrics_setting.bucket_time'],
     retention_days: defaults['perf_metrics_setting.retention_days'],
   },
-  model_availability_setting: {
-    enabled: defaults['model_availability_setting.enabled'],
-    sources: parseAvailabilitySources(
-      defaults['model_availability_setting.sources']
-    ),
-  },
 })
-
-type AvailabilitySourceFormValue = {
-  group: string
-  url: string
-  token: string
-}
-
-const parseAvailabilitySources = (
-  value: string
-): AvailabilitySourceFormValue[] => {
-  try {
-    const parsed: unknown = JSON.parse(value || '[]')
-    if (!Array.isArray(parsed)) return []
-    return parsed.map((source: unknown) => {
-      const candidate =
-        source && typeof source === 'object'
-          ? (source as Record<string, unknown>)
-          : {}
-      return {
-        group: typeof candidate.group === 'string' ? candidate.group : '',
-        url: typeof candidate.url === 'string' ? candidate.url : '',
-        token: typeof candidate.token === 'string' ? candidate.token : '',
-      }
-    })
-  } catch {
-    return []
-  }
-}
 
 const normalizeDefaults = (
   defaults: MonitoringSettingsSectionProps['defaultValues']
@@ -169,10 +108,6 @@ const normalizeDefaults = (
     defaults['perf_metrics_setting.bucket_time'],
   'perf_metrics_setting.retention_days':
     defaults['perf_metrics_setting.retention_days'],
-  'model_availability_setting.enabled':
-    defaults['model_availability_setting.enabled'],
-  'model_availability_setting.sources':
-    defaults['model_availability_setting.sources'] || '[]',
 })
 
 const normalizeFormValues = (
@@ -185,22 +120,12 @@ const normalizeFormValues = (
   'perf_metrics_setting.bucket_time': values.perf_metrics_setting.bucket_time,
   'perf_metrics_setting.retention_days':
     values.perf_metrics_setting.retention_days,
-  'model_availability_setting.enabled':
-    values.model_availability_setting.enabled,
-  'model_availability_setting.sources': JSON.stringify(
-    values.model_availability_setting.sources.map((source) => ({
-      group: source.group.trim(),
-      url: source.url.trim(),
-      token: source.token,
-    }))
-  ),
 })
 
 export function MonitoringSettingsSection({
   defaultValues,
 }: MonitoringSettingsSectionProps) {
   const { t } = useTranslation()
-  const schema = useMemo(() => createMonitoringSchema(t), [t])
   const updateOption = useUpdateOption()
   const baselineRef = useRef<FlatMonitoringDefaults>(
     normalizeDefaults(defaultValues)
@@ -215,7 +140,7 @@ export function MonitoringSettingsSection({
   )
 
   const form = useForm<MonitoringFormInput, unknown, MonitoringFormValues>({
-    resolver: zodResolver(schema),
+    resolver: zodResolver(monitoringSchema),
     defaultValues: formDefaults,
   })
 
@@ -230,19 +155,6 @@ export function MonitoringSettingsSection({
   }, [defaultValues])
 
   const perfMetricsEnabled = form.watch('perf_metrics_setting.enabled')
-  const availabilityEnabled = form.watch('model_availability_setting.enabled')
-  const availabilitySources = useFieldArray({
-    control: form.control,
-    name: 'model_availability_setting.sources',
-  })
-  const { data: availableGroups = [] } = useQuery({
-    queryKey: ['admin-groups'],
-    queryFn: async () => {
-      const response = await api.get('/api/group/')
-      return (response.data?.data ?? []) as string[]
-    },
-    staleTime: 5 * 60 * 1000,
-  })
 
   const onSubmit = async (values: MonitoringFormValues) => {
     const normalized = normalizeFormValues(values)
@@ -400,139 +312,6 @@ export function MonitoringSettingsSection({
                 </FormItem>
               )}
             />
-          </div>
-
-          <div className='border-t pt-5'>
-            <h4 className='font-medium'>{t('Model availability sources')}</h4>
-            <p className='text-muted-foreground mt-1 text-xs'>
-              {t(
-                'Display availability declared by upstream services for each group.'
-              )}
-            </p>
-          </div>
-
-          <FormField
-            control={form.control}
-            name='model_availability_setting.enabled'
-            render={({ field }) => (
-              <SettingsSwitchItem>
-                <SettingsSwitchContent>
-                  <FormLabel>{t('Enable model availability')}</FormLabel>
-                </SettingsSwitchContent>
-                <FormControl>
-                  <Switch
-                    checked={field.value}
-                    onCheckedChange={field.onChange}
-                  />
-                </FormControl>
-              </SettingsSwitchItem>
-            )}
-          />
-
-          <div className='space-y-3'>
-            {availabilitySources.fields.map((source, index) => (
-              <div
-                key={source.id}
-                className='grid grid-cols-1 items-start gap-3 border-b pb-3 md:grid-cols-[minmax(8rem,0.7fr)_minmax(14rem,1.5fr)_minmax(10rem,1fr)_2.5rem]'
-              >
-                <FormField
-                  control={form.control}
-                  name={`model_availability_setting.sources.${index}.group`}
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>{t('Group')}</FormLabel>
-                      <Select
-                        items={availableGroups.map((group) => ({
-                          value: group,
-                          label: group,
-                        }))}
-                        value={field.value}
-                        onValueChange={field.onChange}
-                        disabled={!availabilityEnabled}
-                      >
-                        <FormControl>
-                          <SelectTrigger>
-                            <SelectValue placeholder={t('Select group')} />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent alignItemWithTrigger={false}>
-                          <SelectGroup>
-                            {availableGroups.map((group) => (
-                              <SelectItem key={group} value={group}>
-                                {group}
-                              </SelectItem>
-                            ))}
-                          </SelectGroup>
-                        </SelectContent>
-                      </Select>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name={`model_availability_setting.sources.${index}.url`}
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>{t('Status URL')}</FormLabel>
-                      <FormControl>
-                        <Input
-                          {...field}
-                          type='url'
-                          placeholder='http://claude-relay:8080/availability'
-                          disabled={!availabilityEnabled}
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name={`model_availability_setting.sources.${index}.token`}
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>{t('Bearer token (optional)')}</FormLabel>
-                      <FormControl>
-                        <Input
-                          {...field}
-                          type='password'
-                          autoComplete='new-password'
-                          disabled={!availabilityEnabled}
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <Button
-                  type='button'
-                  variant='ghost'
-                  size='icon'
-                  className='mt-6'
-                  onClick={() => availabilitySources.remove(index)}
-                  disabled={!availabilityEnabled}
-                  aria-label={t('Remove availability source')}
-                  title={t('Remove availability source')}
-                >
-                  <Trash2 className='size-4' />
-                </Button>
-              </div>
-            ))}
-            <Button
-              type='button'
-              variant='outline'
-              size='sm'
-              onClick={() =>
-                availabilitySources.append({ group: '', url: '', token: '' })
-              }
-              disabled={
-                !availabilityEnabled || availabilitySources.fields.length >= 20
-              }
-            >
-              <Plus className='size-4' />
-              {t('Add availability source')}
-            </Button>
           </div>
         </SettingsForm>
       </Form>
