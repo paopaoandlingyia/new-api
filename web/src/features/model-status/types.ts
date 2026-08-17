@@ -22,6 +22,7 @@ export type ModelStatusItem = {
   model_name: string
   description?: string
   icon?: string
+  vendor_icon?: string
   enabled: boolean
   status: ManualModelStatus
   message?: string

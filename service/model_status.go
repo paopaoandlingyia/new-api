@@ -18,6 +18,7 @@ type ModelStatus struct {
 	ModelName   string `json:"model_name"`
 	Description string `json:"description,omitempty"`
 	Icon        string `json:"icon,omitempty"`
+	VendorIcon  string `json:"vendor_icon,omitempty"`
 	Enabled     bool   `json:"enabled"`
 	Status      string `json:"status"`
 	Message     string `json:"message,omitempty"`
@@ -40,7 +41,8 @@ func GetPublishedModelStatuses() ([]ModelStatus, error) {
 	if err != nil {
 		return nil, err
 	}
-	return mergeModelStatuses(model.GetPricing(), items, false), nil
+	pricing := model.GetPricing()
+	return mergeModelStatuses(pricing, model.GetVendors(), items, false), nil
 }
 
 func GetManagedModelStatuses() ([]ModelStatus, error) {
@@ -48,7 +50,8 @@ func GetManagedModelStatuses() ([]ModelStatus, error) {
 	if err != nil {
 		return nil, err
 	}
-	return mergeModelStatuses(model.GetPricing(), items, true), nil
+	pricing := model.GetPricing()
+	return mergeModelStatuses(pricing, model.GetVendors(), items, true), nil
 }
 
 func UpdateModelStatus(update ModelStatusUpdate) error {
@@ -97,7 +100,11 @@ func UpdateModelStatus(update ModelStatusUpdate) error {
 	return model.UpdateOption(model_status_setting.ItemsOptionKey, string(payload))
 }
 
-func mergeModelStatuses(pricing []model.Pricing, items map[string]model_status_setting.Entry, includeDisabled bool) []ModelStatus {
+func mergeModelStatuses(pricing []model.Pricing, vendors []model.PricingVendor, items map[string]model_status_setting.Entry, includeDisabled bool) []ModelStatus {
+	vendorIcons := make(map[int]string, len(vendors))
+	for _, vendor := range vendors {
+		vendorIcons[vendor.ID] = vendor.Icon
+	}
 	statuses := make([]ModelStatus, 0, len(pricing))
 	for _, pricingModel := range pricing {
 		entry, enabled := items[pricingModel.ModelName]
@@ -112,6 +119,7 @@ func mergeModelStatuses(pricing []model.Pricing, items map[string]model_status_s
 			ModelName:   pricingModel.ModelName,
 			Description: pricingModel.Description,
 			Icon:        pricingModel.Icon,
+			VendorIcon:  vendorIcons[pricingModel.VendorID],
 			Enabled:     enabled,
 			Status:      status,
 			Message:     entry.Message,

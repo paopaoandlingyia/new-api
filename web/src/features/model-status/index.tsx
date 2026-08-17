@@ -143,7 +143,8 @@ export function ModelStatus() {
 
 function ModelStatusCard(props: { model: ModelStatusItem; locale: string }) {
   const { t } = useTranslation()
-  const icon = props.model.icon ? getLobeIcon(props.model.icon, 32) : null
+  const iconKey = props.model.icon || props.model.vendor_icon
+  const icon = iconKey ? getLobeIcon(iconKey, 32) : null
   const updatedAt = formatModelStatusUpdatedAt(
     props.model.updated_at,
     props.locale
