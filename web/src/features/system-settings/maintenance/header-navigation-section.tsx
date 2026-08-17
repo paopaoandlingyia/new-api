@@ -55,6 +55,8 @@ const headerNavSchema = z.object({
   pricingRequireAuth: z.boolean(),
   rankingsEnabled: z.boolean(),
   rankingsRequireAuth: z.boolean(),
+  modelStatusEnabled: z.boolean(),
+  modelStatusRequireAuth: z.boolean(),
   docs: z.boolean(),
   about: z.boolean(),
 })
@@ -89,6 +91,14 @@ const toFormValues = (config: HeaderNavModulesConfig): HeaderNavFormValues => ({
     config.rankings?.requireAuth === undefined
       ? HEADER_NAV_DEFAULT.rankings.requireAuth
       : Boolean(config.rankings.requireAuth),
+  modelStatusEnabled:
+    config.modelStatus?.enabled === undefined
+      ? HEADER_NAV_DEFAULT.modelStatus.enabled
+      : Boolean(config.modelStatus.enabled),
+  modelStatusRequireAuth:
+    config.modelStatus?.requireAuth === undefined
+      ? HEADER_NAV_DEFAULT.modelStatus.requireAuth
+      : Boolean(config.modelStatus.requireAuth),
   docs:
     config.docs === undefined ? HEADER_NAV_DEFAULT.docs : Boolean(config.docs),
   about:
@@ -130,6 +140,11 @@ export function HeaderNavigationSection({
         ...(config.rankings ?? HEADER_NAV_DEFAULT.rankings),
         enabled: values.rankingsEnabled,
         requireAuth: values.rankingsRequireAuth,
+      },
+      modelStatus: {
+        ...(config.modelStatus ?? HEADER_NAV_DEFAULT.modelStatus),
+        enabled: values.modelStatusEnabled,
+        requireAuth: values.modelStatusRequireAuth,
       },
     }
 
@@ -178,7 +193,10 @@ export function HeaderNavigationSection({
   const accessModules: Array<{
     enabledKey: keyof HeaderNavFormValues
     requireAuthKey: keyof HeaderNavFormValues
-    requireAuthDependsOn: 'pricingEnabled' | 'rankingsEnabled'
+    requireAuthDependsOn:
+      | 'pricingEnabled'
+      | 'rankingsEnabled'
+      | 'modelStatusEnabled'
     title: string
     description: string
     requireAuthTitle: string
@@ -193,6 +211,17 @@ export function HeaderNavigationSection({
       requireAuthTitle: t('Require login to view models'),
       requireAuthDescription: t(
         'Visitors must authenticate before accessing the pricing directory.'
+      ),
+    },
+    {
+      enabledKey: 'modelStatusEnabled',
+      requireAuthKey: 'modelStatusRequireAuth',
+      requireAuthDependsOn: 'modelStatusEnabled',
+      title: t('Model Status'),
+      description: t('Public page for manually published model status.'),
+      requireAuthTitle: t('Require login to view model status'),
+      requireAuthDescription: t(
+        'Visitors must authenticate before accessing the model status page.'
       ),
     },
     {

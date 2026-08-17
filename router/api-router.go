@@ -32,6 +32,9 @@ func SetApiRouter(router *gin.Engine) {
 		//apiRouter.GET("/midjourney", controller.GetMidjourney)
 		apiRouter.GET("/home_page_content", controller.GetHomePageContent)
 		apiRouter.GET("/pricing", middleware.HeaderNavModuleAuth("pricing"), controller.GetPricing)
+		apiRouter.GET("/model-status", middleware.HeaderNavModuleAuth("modelStatus"), controller.GetPublishedModelStatuses)
+		apiRouter.GET("/model-status/manage", middleware.AdminAuth(), controller.GetManagedModelStatuses)
+		apiRouter.PUT("/model-status/manage", middleware.AdminAuth(), controller.UpdateManagedModelStatus)
 		perfMetricsRoute := apiRouter.Group("/perf-metrics")
 		perfMetricsRoute.Use(middleware.HeaderNavModulePublicOrUserAuth("pricing"))
 		{
