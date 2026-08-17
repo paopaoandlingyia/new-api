@@ -16,28 +16,27 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-export type ManualModelStatus = 'available' | 'unavailable' | 'maintenance'
+export type ManualGroupStatus = 'available' | 'unavailable' | 'maintenance'
 
-export type ModelStatusItem = {
-  model_name: string
+export type GroupStatusItem = {
+  group_name: string
   description?: string
-  icon?: string
-  vendor_icon?: string
   enabled: boolean
-  status: ManualModelStatus
+  status: ManualGroupStatus
   message?: string
   updated_at?: number
+  models: string[]
 }
 
-export type ModelStatusResponse = {
+export type GroupStatusResponse = {
   success: boolean
   message?: string
-  data: ModelStatusItem[]
+  data: GroupStatusItem[]
 }
 
-export type ModelStatusUpdate = {
-  model_name: string
+export type GroupStatusUpdate = {
+  group_name: string
   enabled: boolean
-  status: ManualModelStatus
+  status: ManualGroupStatus
   message: string
 }

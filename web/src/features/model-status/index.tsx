@@ -16,6 +16,8 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
+import { Layers01Icon } from '@hugeicons/core-free-icons'
+import { HugeiconsIcon } from '@hugeicons/react'
 import { useQuery } from '@tanstack/react-query'
 import { type ReactNode, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -23,79 +25,102 @@ import { useTranslation } from 'react-i18next'
 import { PublicLayout } from '@/components/layout'
 import { PageTransition } from '@/components/page-transition'
 import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from '@/components/ui/accordion'
+import { Badge } from '@/components/ui/badge'
+import {
   Card,
   CardAction,
   CardContent,
   CardDescription,
+  CardFooter,
   CardHeader,
   CardTitle,
 } from '@/components/ui/card'
+import {
+  Empty,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyMedia,
+  EmptyTitle,
+} from '@/components/ui/empty'
 import { Input } from '@/components/ui/input'
 import { Skeleton } from '@/components/ui/skeleton'
-import { getLobeIcon } from '@/lib/lobe-icon'
 
-import { getPublishedModelStatuses } from './api'
+import { getPublishedGroupStatuses } from './api'
 import {
-  countModelStatusIssues,
-  filterModelStatuses,
-  formatModelStatusUpdatedAt,
-} from './lib/model-status'
-import { ModelStatusBadge } from './status-badge'
-import type { ModelStatusItem } from './types'
+  countGroupStatusIssues,
+  filterGroupStatuses,
+  formatGroupStatusUpdatedAt,
+} from './lib/group-status'
+import { GroupStatusBadge } from './status-badge'
+import type { GroupStatusItem } from './types'
 
-const EMPTY_MODELS: ModelStatusItem[] = []
+const EMPTY_GROUPS: GroupStatusItem[] = []
 
 export function ModelStatus() {
   const { t, i18n } = useTranslation()
   const [search, setSearch] = useState('')
   const statusQuery = useQuery({
     queryKey: ['model-status'],
-    queryFn: getPublishedModelStatuses,
+    queryFn: getPublishedGroupStatuses,
     refetchInterval: 60_000,
   })
-  const models = statusQuery.data?.data ?? EMPTY_MODELS
-  const filteredModels = useMemo(
-    () => filterModelStatuses(models, search),
-    [models, search]
+  const groups = statusQuery.data?.data ?? EMPTY_GROUPS
+  const filteredGroups = useMemo(
+    () => filterGroupStatuses(groups, search),
+    [groups, search]
   )
-  const issueCounts = countModelStatusIssues(models)
+  const issueCounts = countGroupStatusIssues(groups)
 
-  let summary = t('All published models are available')
+  let summary = t('All published groups are available')
   if (issueCounts.unavailable > 0) {
-    summary = t('{{count}} models are currently unavailable', {
+    summary = t('{{count}} groups are currently unavailable', {
       count: issueCounts.unavailable,
     })
   } else if (issueCounts.maintenance > 0) {
-    summary = t('{{count}} models are under maintenance', {
+    summary = t('{{count}} groups are under maintenance', {
       count: issueCounts.maintenance,
     })
   }
 
   let content: ReactNode
   if (statusQuery.isLoading) {
-    content = <ModelStatusLoading />
+    content = <GroupStatusLoading />
   } else if (statusQuery.isError || !statusQuery.data?.success) {
     content = (
       <p className='text-destructive py-10 text-center text-sm'>
-        {statusQuery.data?.message ?? t('Unable to load model status')}
+        {statusQuery.data?.message ?? t('Unable to load group status')}
       </p>
     )
-  } else if (filteredModels.length === 0) {
-    const emptyMessage = search.trim()
-      ? t('No models match your search')
-      : t('No model status has been published yet')
+  } else if (filteredGroups.length === 0) {
     content = (
-      <p className='text-muted-foreground py-10 text-center text-sm'>
-        {emptyMessage}
-      </p>
+      <Empty className='min-h-72 border'>
+        <EmptyHeader>
+          <EmptyMedia variant='icon'>
+            <HugeiconsIcon icon={Layers01Icon} strokeWidth={2} />
+          </EmptyMedia>
+          <EmptyTitle>
+            {search.trim()
+              ? t('No groups or models match your search')
+              : t('No group status has been published yet')}
+          </EmptyTitle>
+          <EmptyDescription>
+            {t('Group availability is published by the site administrator.')}
+          </EmptyDescription>
+        </EmptyHeader>
+      </Empty>
     )
   } else {
     content = (
-      <div className='grid gap-4 md:grid-cols-2 xl:grid-cols-3'>
-        {filteredModels.map((model) => (
-          <ModelStatusCard
-            key={model.model_name}
-            model={model}
+      <div className='grid items-start gap-4 lg:grid-cols-2'>
+        {filteredGroups.map((group) => (
+          <GroupStatusCard
+            key={group.group_name}
+            group={group}
             locale={i18n.language}
           />
         ))}
@@ -109,7 +134,9 @@ export function ModelStatus() {
         <header>
           <h1 className='text-2xl font-semibold'>{t('Model Status')}</h1>
           <p className='text-muted-foreground mt-1 text-sm'>
-            {t('Current service status published by the site administrator.')}
+            {t(
+              'Current group availability published by the site administrator.'
+            )}
           </p>
         </header>
 
@@ -117,21 +144,21 @@ export function ModelStatus() {
           <div>
             <p className='font-medium'>{summary}</p>
             <p className='text-muted-foreground mt-0.5 text-sm'>
-              {t('{{count}} models published', { count: models.length })}
+              {t('{{count}} groups published', { count: groups.length })}
             </p>
           </div>
           <div className='flex flex-wrap gap-2'>
-            <ModelStatusBadge status='available' />
-            <ModelStatusBadge status='maintenance' />
-            <ModelStatusBadge status='unavailable' />
+            <GroupStatusBadge status='available' />
+            <GroupStatusBadge status='maintenance' />
+            <GroupStatusBadge status='unavailable' />
           </div>
         </section>
 
         <Input
           value={search}
           onChange={(event) => setSearch(event.target.value)}
-          placeholder={t('Search models')}
-          aria-label={t('Search models')}
+          placeholder={t('Search groups or models')}
+          aria-label={t('Search groups or models')}
           className='max-w-md'
         />
 
@@ -141,52 +168,74 @@ export function ModelStatus() {
   )
 }
 
-function ModelStatusCard(props: { model: ModelStatusItem; locale: string }) {
+function GroupStatusCard(props: { group: GroupStatusItem; locale: string }) {
   const { t } = useTranslation()
-  const iconKey = props.model.icon || props.model.vendor_icon
-  const icon = iconKey ? getLobeIcon(iconKey, 32) : null
-  const updatedAt = formatModelStatusUpdatedAt(
-    props.model.updated_at,
+  const updatedAt = formatGroupStatusUpdatedAt(
+    props.group.updated_at,
     props.locale
   )
 
   return (
-    <Card className='min-h-40' size='sm'>
+    <Card size='sm'>
       <CardHeader>
         <CardTitle className='flex min-w-0 items-center gap-2'>
           <span className='bg-muted flex size-9 shrink-0 items-center justify-center rounded-md'>
-            {icon ?? props.model.model_name.charAt(0).toUpperCase()}
+            <HugeiconsIcon
+              icon={Layers01Icon}
+              className='size-5'
+              strokeWidth={2}
+            />
           </span>
           <span className='truncate font-mono text-sm'>
-            {props.model.model_name}
+            {props.group.group_name}
           </span>
         </CardTitle>
-        <CardDescription className='line-clamp-2'>
-          {props.model.description || t('No description')}
-        </CardDescription>
+        {props.group.description ? (
+          <CardDescription className='line-clamp-2'>
+            {props.group.description}
+          </CardDescription>
+        ) : null}
         <CardAction>
-          <ModelStatusBadge status={props.model.status} />
+          <GroupStatusBadge status={props.group.status} />
         </CardAction>
       </CardHeader>
-      <CardContent className='mt-auto flex flex-col gap-2'>
-        {props.model.message ? (
-          <p className='text-sm'>{props.model.message}</p>
+      <CardContent className='flex flex-col gap-3'>
+        {props.group.message ? (
+          <p className='text-sm'>{props.group.message}</p>
         ) : null}
-        {updatedAt ? (
-          <p className='text-muted-foreground text-xs'>
-            {t('Updated {{time}}', { time: updatedAt })}
-          </p>
-        ) : null}
+        <Accordion>
+          <AccordionItem value='models'>
+            <AccordionTrigger className='hover:no-underline'>
+              {t('{{count}} models in this group', {
+                count: props.group.models.length,
+              })}
+            </AccordionTrigger>
+            <AccordionContent>
+              <div className='flex flex-wrap gap-2 pt-1'>
+                {props.group.models.map((model) => (
+                  <Badge key={model} variant='outline' className='font-mono'>
+                    {model}
+                  </Badge>
+                ))}
+              </div>
+            </AccordionContent>
+          </AccordionItem>
+        </Accordion>
       </CardContent>
+      {updatedAt ? (
+        <CardFooter className='text-muted-foreground text-xs'>
+          {t('Updated {{time}}', { time: updatedAt })}
+        </CardFooter>
+      ) : null}
     </Card>
   )
 }
 
-function ModelStatusLoading() {
+function GroupStatusLoading() {
   return (
-    <div className='grid gap-4 md:grid-cols-2 xl:grid-cols-3'>
-      {Array.from({ length: 6 }, (_, index) => (
-        <Skeleton key={index} className='h-40 w-full' />
+    <div className='grid gap-4 lg:grid-cols-2'>
+      {Array.from({ length: 4 }, (_, index) => (
+        <Skeleton key={index} className='h-52 w-full' />
       ))}
     </div>
   )

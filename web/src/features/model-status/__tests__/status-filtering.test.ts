@@ -19,40 +19,55 @@ For commercial licensing, please contact support@quantumnous.com
 import { describe, expect, test } from 'vitest'
 
 import {
-  countModelStatusIssues,
-  filterModelStatuses,
-  formatModelStatusUpdatedAt,
-} from '../lib/model-status'
-import type { ModelStatusItem } from '../types'
+  countGroupStatusIssues,
+  filterGroupStatuses,
+  formatGroupStatusUpdatedAt,
+} from '../lib/group-status'
+import type { GroupStatusItem } from '../types'
 
-const models: ModelStatusItem[] = [
-  { model_name: 'claude-sonnet', enabled: true, status: 'available' },
-  { model_name: 'claude-opus', enabled: true, status: 'unavailable' },
-  { model_name: 'gpt-5', enabled: false, status: 'maintenance' },
+const groups: GroupStatusItem[] = [
+  {
+    group_name: 'compatible',
+    enabled: true,
+    status: 'available',
+    models: ['claude-sonnet', 'claude-opus'],
+  },
+  {
+    group_name: 'premium',
+    enabled: true,
+    status: 'unavailable',
+    models: ['gpt-5'],
+  },
+  {
+    group_name: 'internal',
+    enabled: false,
+    status: 'maintenance',
+    models: ['gemini-pro'],
+  },
 ]
 
-describe('manual model status filtering', () => {
-  test('combines publication and search filters without changing source data', () => {
+describe('manual group status filtering', () => {
+  test('searches group names and member models while preserving visibility', () => {
     expect(
-      filterModelStatuses(models, 'claude', 'published').map(
-        (model) => model.model_name
+      filterGroupStatuses(groups, 'claude', 'published').map(
+        (group) => group.group_name
       )
-    ).toEqual(['claude-sonnet', 'claude-opus'])
+    ).toEqual(['compatible'])
     expect(
-      filterModelStatuses(models, '', 'hidden').map((model) => model.model_name)
-    ).toEqual(['gpt-5'])
-    expect(models).toHaveLength(3)
+      filterGroupStatuses(groups, '', 'hidden').map((group) => group.group_name)
+    ).toEqual(['internal'])
+    expect(groups).toHaveLength(3)
   })
 
-  test('counts unavailable and maintenance states independently', () => {
-    expect(countModelStatusIssues(models)).toEqual({
+  test('counts unavailable and maintenance groups independently', () => {
+    expect(countGroupStatusIssues(groups)).toEqual({
       unavailable: 1,
       maintenance: 1,
     })
   })
 
   test('formats update times with the interface Chinese language codes', () => {
-    expect(() => formatModelStatusUpdatedAt(1, 'zhCN')).not.toThrow()
-    expect(() => formatModelStatusUpdatedAt(1, 'zhTW')).not.toThrow()
+    expect(() => formatGroupStatusUpdatedAt(1, 'zhCN')).not.toThrow()
+    expect(() => formatGroupStatusUpdatedAt(1, 'zhTW')).not.toThrow()
   })
 })

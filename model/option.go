@@ -207,8 +207,8 @@ func SyncOptions(frequency int) {
 }
 
 func validateOptionValue(key string, value string) error {
-	if key == model_status_setting.ItemsOptionKey {
-		return model_status_setting.ValidateItems(value)
+	if key == model_status_setting.GroupsOptionKey {
+		return model_status_setting.ValidateGroups(value)
 	}
 	if key == operation_setting.ToolPriceOptionKey {
 		return operation_setting.ValidateToolPricesJSON(value)

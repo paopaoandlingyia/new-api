@@ -16,10 +16,10 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { FloppyDiskIcon } from '@hugeicons/core-free-icons'
+import { FloppyDiskIcon, Layers01Icon } from '@hugeicons/core-free-icons'
 import { HugeiconsIcon } from '@hugeicons/react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { type ReactNode, useEffect, useMemo, useState } from 'react'
+import { type ReactNode, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
@@ -28,10 +28,18 @@ import {
   staticDataTableClassNames as tableStyles,
 } from '@/components/data-table'
 import { Button } from '@/components/ui/button'
+import {
+  Empty,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyMedia,
+  EmptyTitle,
+} from '@/components/ui/empty'
 import { Input } from '@/components/ui/input'
 import {
   Select,
   SelectContent,
+  SelectGroup,
   SelectItem,
   SelectTrigger,
   SelectValue,
@@ -39,17 +47,17 @@ import {
 import { Skeleton } from '@/components/ui/skeleton'
 import { Switch } from '@/components/ui/switch'
 
-import { getManagedModelStatuses, updateManagedModelStatus } from './api'
-import { filterModelStatuses, type VisibilityFilter } from './lib/model-status'
-import { ModelStatusBadge } from './status-badge'
+import { getManagedGroupStatuses, updateManagedGroupStatus } from './api'
+import { filterGroupStatuses, type VisibilityFilter } from './lib/group-status'
+import { GroupStatusBadge } from './status-badge'
 import type {
-  ManualModelStatus,
-  ModelStatusItem,
-  ModelStatusUpdate,
+  GroupStatusItem,
+  GroupStatusUpdate,
+  ManualGroupStatus,
 } from './types'
 
 const MANAGE_QUERY_KEY = ['model-status-manage']
-const EMPTY_MODELS: ModelStatusItem[] = []
+const EMPTY_GROUPS: GroupStatusItem[] = []
 
 export function ModelStatusManage() {
   const { t } = useTranslation()
@@ -58,47 +66,59 @@ export function ModelStatusManage() {
   const [visibility, setVisibility] = useState<VisibilityFilter>('all')
   const statusQuery = useQuery({
     queryKey: MANAGE_QUERY_KEY,
-    queryFn: getManagedModelStatuses,
+    queryFn: getManagedGroupStatuses,
   })
   const {
-    mutate: updateModel,
+    mutate: updateGroup,
     isPending: updatePending,
     variables: pendingUpdate,
   } = useMutation({
-    mutationFn: updateManagedModelStatus,
+    mutationFn: updateManagedGroupStatus,
     onSuccess: (result) => {
       if (!result.success) {
-        toast.error(result.message ?? t('Failed to save model status'))
+        toast.error(result.message ?? t('Failed to save group status'))
         return
       }
-      toast.success(t('Model status saved'))
+      toast.success(t('Group status saved'))
       queryClient.invalidateQueries({ queryKey: MANAGE_QUERY_KEY })
       queryClient.invalidateQueries({ queryKey: ['model-status'] })
     },
-    onError: () => toast.error(t('Failed to save model status')),
+    onError: () => toast.error(t('Failed to save group status')),
   })
-  const models = statusQuery.data?.data ?? EMPTY_MODELS
-  const filteredModels = useMemo(
-    () => filterModelStatuses(models, search, visibility),
-    [models, search, visibility]
+  const groups = statusQuery.data?.data ?? EMPTY_GROUPS
+  const filteredGroups = useMemo(
+    () => filterGroupStatuses(groups, search, visibility),
+    [groups, search, visibility]
   )
-  const publishedCount = models.filter((model) => model.enabled).length
-  const pendingModel = updatePending ? pendingUpdate?.model_name : undefined
+  const publishedCount = groups.filter((group) => group.enabled).length
+  const pendingGroup = updatePending ? pendingUpdate?.group_name : undefined
   const visibilityLabel = {
-    all: t('All models'),
-    published: t('Published models'),
-    hidden: t('Hidden models'),
+    all: t('All groups'),
+    published: t('Published groups'),
+    hidden: t('Hidden groups'),
   }[visibility]
 
   const columns = useMemo(
     () => [
       {
-        id: 'model',
-        header: t('Model'),
+        id: 'group',
+        header: t('Group'),
         className: tableStyles.compactHeaderCell,
         cellClassName: tableStyles.compactCell,
-        cell: (model: ModelStatusItem) => (
-          <span className='font-mono text-xs'>{model.model_name}</span>
+        cell: (group: GroupStatusItem) => (
+          <div className='flex min-w-0 flex-col gap-0.5'>
+            <span className='font-mono text-xs font-medium'>
+              {group.group_name}
+            </span>
+            {group.description ? (
+              <span className='text-muted-foreground truncate text-xs'>
+                {group.description}
+              </span>
+            ) : null}
+            <span className='text-muted-foreground text-xs'>
+              {t('{{count}} models', { count: group.models.length })}
+            </span>
+          </div>
         ),
       },
       {
@@ -106,19 +126,19 @@ export function ModelStatusManage() {
         header: t('Public display'),
         className: tableStyles.compactHeaderCell,
         cellClassName: tableStyles.compactCell,
-        cell: (model: ModelStatusItem) => (
+        cell: (group: GroupStatusItem) => (
           <Switch
-            checked={model.enabled}
-            disabled={pendingModel === model.model_name}
-            aria-label={t('Publish {{model}} on the status page', {
-              model: model.model_name,
+            checked={group.enabled}
+            disabled={pendingGroup === group.group_name}
+            aria-label={t('Publish {{group}} on the status page', {
+              group: group.group_name,
             })}
             onCheckedChange={(enabled) =>
-              updateModel({
-                model_name: model.model_name,
+              updateGroup({
+                group_name: group.group_name,
                 enabled,
-                status: model.status,
-                message: model.message ?? '',
+                status: group.status,
+                message: group.message ?? '',
               })
             }
           />
@@ -129,11 +149,11 @@ export function ModelStatusManage() {
         header: t('Public status'),
         className: tableStyles.compactHeaderCell,
         cellClassName: tableStyles.compactCell,
-        cell: (model: ModelStatusItem) => (
-          <ModelStatusSelect
-            model={model}
-            disabled={!model.enabled || pendingModel === model.model_name}
-            onUpdate={updateModel}
+        cell: (group: GroupStatusItem) => (
+          <GroupStatusSelect
+            group={group}
+            disabled={!group.enabled || pendingGroup === group.group_name}
+            onUpdate={updateGroup}
           />
         ),
       },
@@ -142,16 +162,17 @@ export function ModelStatusManage() {
         header: t('Public note'),
         className: tableStyles.compactHeaderCell,
         cellClassName: tableStyles.compactCell,
-        cell: (model: ModelStatusItem) => (
-          <ModelStatusMessageEditor
-            model={model}
-            disabled={!model.enabled || pendingModel === model.model_name}
-            onUpdate={updateModel}
+        cell: (group: GroupStatusItem) => (
+          <GroupStatusMessageEditor
+            key={`${group.group_name}:${group.updated_at ?? 0}`}
+            group={group}
+            disabled={!group.enabled || pendingGroup === group.group_name}
+            onUpdate={updateGroup}
           />
         ),
       },
     ],
-    [pendingModel, t, updateModel]
+    [pendingGroup, t, updateGroup]
   )
 
   let content: ReactNode
@@ -160,21 +181,29 @@ export function ModelStatusManage() {
   } else if (statusQuery.isError || !statusQuery.data?.success) {
     content = (
       <p className='text-destructive py-10 text-center text-sm'>
-        {statusQuery.data?.message ?? t('Unable to load model status')}
+        {statusQuery.data?.message ?? t('Unable to load group status')}
       </p>
     )
-  } else if (filteredModels.length === 0) {
+  } else if (filteredGroups.length === 0) {
     content = (
-      <p className='text-muted-foreground rounded-md border py-10 text-center text-sm'>
-        {t('No models match your filters')}
-      </p>
+      <Empty className='min-h-72 border'>
+        <EmptyHeader>
+          <EmptyMedia variant='icon'>
+            <HugeiconsIcon icon={Layers01Icon} strokeWidth={2} />
+          </EmptyMedia>
+          <EmptyTitle>{t('No groups match your filters')}</EmptyTitle>
+          <EmptyDescription>
+            {t('Groups are derived from model catalog availability.')}
+          </EmptyDescription>
+        </EmptyHeader>
+      </Empty>
     )
   } else {
     content = (
       <StaticDataTable
-        data={filteredModels}
+        data={filteredGroups}
         columns={columns}
-        getRowKey={(model) => model.model_name}
+        getRowKey={(group) => group.group_name}
         tableClassName='min-w-[900px] table-fixed text-sm'
         headerRowClassName={tableStyles.compactHeaderRow}
       />
@@ -187,7 +216,7 @@ export function ModelStatusManage() {
         <h1 className='text-xl font-semibold'>{t('Model Status')}</h1>
         <p className='text-muted-foreground mt-1 text-sm'>
           {t(
-            'Publish manually maintained model availability without changing routing or model access.'
+            'Publish manually maintained group availability without changing routing or model access.'
           )}
         </p>
       </header>
@@ -196,8 +225,8 @@ export function ModelStatusManage() {
         <Input
           value={search}
           onChange={(event) => setSearch(event.target.value)}
-          placeholder={t('Search models')}
-          aria-label={t('Search models')}
+          placeholder={t('Search groups or models')}
+          aria-label={t('Search groups or models')}
           className='w-full sm:max-w-sm'
         />
         <Select
@@ -208,15 +237,17 @@ export function ModelStatusManage() {
             <SelectValue>{visibilityLabel}</SelectValue>
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value='all'>{t('All models')}</SelectItem>
-            <SelectItem value='published'>{t('Published models')}</SelectItem>
-            <SelectItem value='hidden'>{t('Hidden models')}</SelectItem>
+            <SelectGroup>
+              <SelectItem value='all'>{t('All groups')}</SelectItem>
+              <SelectItem value='published'>{t('Published groups')}</SelectItem>
+              <SelectItem value='hidden'>{t('Hidden groups')}</SelectItem>
+            </SelectGroup>
           </SelectContent>
         </Select>
         <span className='text-muted-foreground text-sm'>
-          {t('{{published}} of {{total}} models published', {
+          {t('{{published}} of {{total}} groups published', {
             published: publishedCount,
-            total: models.length,
+            total: groups.length,
           })}
         </span>
       </div>
@@ -226,64 +257,61 @@ export function ModelStatusManage() {
   )
 }
 
-function ModelStatusSelect(props: {
-  model: ModelStatusItem
+function GroupStatusSelect(props: {
+  group: GroupStatusItem
   disabled: boolean
-  onUpdate: (update: ModelStatusUpdate) => void
+  onUpdate: (update: GroupStatusUpdate) => void
 }) {
   const { t } = useTranslation()
   const statusLabel = {
     available: t('Available'),
     maintenance: t('Maintenance'),
     unavailable: t('Unavailable'),
-  }[props.model.status]
+  }[props.group.status]
 
   return (
     <div className='flex items-center gap-2'>
-      <ModelStatusBadge status={props.model.status} />
+      <GroupStatusBadge status={props.group.status} />
       <Select
-        value={props.model.status}
+        value={props.group.status}
         disabled={props.disabled}
         onValueChange={(status) =>
           props.onUpdate({
-            model_name: props.model.model_name,
+            group_name: props.group.group_name,
             enabled: true,
-            status: status as ManualModelStatus,
-            message: props.model.message ?? '',
+            status: status as ManualGroupStatus,
+            message: props.group.message ?? '',
           })
         }
       >
         <SelectTrigger
           size='sm'
-          aria-label={t('Status for {{model}}', {
-            model: props.model.model_name,
+          aria-label={t('Status for {{group}}', {
+            group: props.group.group_name,
           })}
         >
           <SelectValue>{statusLabel}</SelectValue>
         </SelectTrigger>
         <SelectContent>
-          <SelectItem value='available'>{t('Available')}</SelectItem>
-          <SelectItem value='maintenance'>{t('Maintenance')}</SelectItem>
-          <SelectItem value='unavailable'>{t('Unavailable')}</SelectItem>
+          <SelectGroup>
+            <SelectItem value='available'>{t('Available')}</SelectItem>
+            <SelectItem value='maintenance'>{t('Maintenance')}</SelectItem>
+            <SelectItem value='unavailable'>{t('Unavailable')}</SelectItem>
+          </SelectGroup>
         </SelectContent>
       </Select>
     </div>
   )
 }
 
-function ModelStatusMessageEditor(props: {
-  model: ModelStatusItem
+function GroupStatusMessageEditor(props: {
+  group: GroupStatusItem
   disabled: boolean
-  onUpdate: (update: ModelStatusUpdate) => void
+  onUpdate: (update: GroupStatusUpdate) => void
 }) {
   const { t } = useTranslation()
-  const [message, setMessage] = useState(props.model.message ?? '')
-
-  useEffect(() => {
-    setMessage(props.model.message ?? '')
-  }, [props.model.message])
-
-  const changed = message.trim() !== (props.model.message ?? '')
+  const [message, setMessage] = useState(props.group.message ?? '')
+  const changed = message.trim() !== (props.group.message ?? '')
 
   return (
     <div className='flex min-w-0 items-center gap-2'>
@@ -292,8 +320,8 @@ function ModelStatusMessageEditor(props: {
         maxLength={500}
         disabled={props.disabled}
         placeholder={t('Optional public note')}
-        aria-label={t('Public note for {{model}}', {
-          model: props.model.model_name,
+        aria-label={t('Public note for {{group}}', {
+          group: props.group.group_name,
         })}
         onChange={(event) => setMessage(event.target.value)}
       />
@@ -302,15 +330,15 @@ function ModelStatusMessageEditor(props: {
         size='icon-sm'
         variant='outline'
         disabled={props.disabled || !changed}
-        aria-label={t('Save note for {{model}}', {
-          model: props.model.model_name,
+        aria-label={t('Save note for {{group}}', {
+          group: props.group.group_name,
         })}
         title={t('Save note')}
         onClick={() =>
           props.onUpdate({
-            model_name: props.model.model_name,
+            group_name: props.group.group_name,
             enabled: true,
-            status: props.model.status,
+            status: props.group.status,
             message,
           })
         }

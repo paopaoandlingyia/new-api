@@ -20,7 +20,7 @@ import { useTranslation } from 'react-i18next'
 
 import { StatusBadge } from '@/components/status-badge'
 
-import type { ManualModelStatus } from './types'
+import type { ManualGroupStatus } from './types'
 
 const STATUS_PRESENTATION = {
   available: { label: 'Available', variant: 'success' },
@@ -28,7 +28,7 @@ const STATUS_PRESENTATION = {
   maintenance: { label: 'Maintenance', variant: 'warning' },
 } as const
 
-export function ModelStatusBadge(props: { status: ManualModelStatus }) {
+export function GroupStatusBadge(props: { status: ManualGroupStatus }) {
   const { t } = useTranslation()
   const presentation = STATUS_PRESENTATION[props.status]
 

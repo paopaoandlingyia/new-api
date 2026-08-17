@@ -18,20 +18,20 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { api } from '@/lib/api'
 
-import type { ModelStatusResponse, ModelStatusUpdate } from './types'
+import type { GroupStatusResponse, GroupStatusUpdate } from './types'
 
-export async function getPublishedModelStatuses(): Promise<ModelStatusResponse> {
+export async function getPublishedGroupStatuses(): Promise<GroupStatusResponse> {
   const response = await api.get('/api/model-status')
   return response.data
 }
 
-export async function getManagedModelStatuses(): Promise<ModelStatusResponse> {
+export async function getManagedGroupStatuses(): Promise<GroupStatusResponse> {
   const response = await api.get('/api/model-status/manage')
   return response.data
 }
 
-export async function updateManagedModelStatus(
-  update: ModelStatusUpdate
+export async function updateManagedGroupStatus(
+  update: GroupStatusUpdate
 ): Promise<{ success: boolean; message?: string }> {
   const response = await api.put('/api/model-status/manage', update)
   return response.data

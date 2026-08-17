@@ -18,11 +18,11 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { toIntlLocale } from '@/i18n/languages'
 
-import type { ModelStatusItem } from '../types'
+import type { GroupStatusItem } from '../types'
 
 export type VisibilityFilter = 'all' | 'published' | 'hidden'
 
-export function formatModelStatusUpdatedAt(
+export function formatGroupStatusUpdatedAt(
   timestamp: number | undefined,
   language: string
 ) {
@@ -33,31 +33,33 @@ export function formatModelStatusUpdatedAt(
   }).format(new Date(timestamp * 1000))
 }
 
-export function filterModelStatuses(
-  models: ModelStatusItem[],
+export function filterGroupStatuses(
+  groups: GroupStatusItem[],
   search: string,
   visibility: VisibilityFilter = 'all'
 ) {
   const normalizedSearch = search.trim().toLowerCase()
-  return models.filter((model) => {
-    if (
-      normalizedSearch &&
-      !model.model_name.toLowerCase().includes(normalizedSearch)
-    ) {
-      return false
-    }
-    if (visibility === 'published') return model.enabled
-    if (visibility === 'hidden') return !model.enabled
-    return true
+  return groups.filter((group) => {
+    if (visibility === 'published' && !group.enabled) return false
+    if (visibility === 'hidden' && group.enabled) return false
+    if (!normalizedSearch) return true
+    return (
+      group.group_name.toLowerCase().includes(normalizedSearch) ||
+      group.description?.toLowerCase().includes(normalizedSearch) ||
+      group.message?.toLowerCase().includes(normalizedSearch) ||
+      group.models.some((model) =>
+        model.toLowerCase().includes(normalizedSearch)
+      )
+    )
   })
 }
 
-export function countModelStatusIssues(models: ModelStatusItem[]) {
+export function countGroupStatusIssues(groups: GroupStatusItem[]) {
   let unavailable = 0
   let maintenance = 0
-  for (const model of models) {
-    if (model.status === 'unavailable') unavailable++
-    if (model.status === 'maintenance') maintenance++
+  for (const group of groups) {
+    if (group.status === 'unavailable') unavailable++
+    if (group.status === 'maintenance') maintenance++
   }
   return { unavailable, maintenance }
 }

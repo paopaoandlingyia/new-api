@@ -5,12 +5,20 @@ import (
 	"net/http"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/service"
 	"github.com/gin-gonic/gin"
 )
 
-func GetPublishedModelStatuses(c *gin.Context) {
-	statuses, err := service.GetPublishedModelStatuses()
+func GetPublishedGroupStatuses(c *gin.Context) {
+	userGroup := ""
+	if userID, exists := c.Get("id"); exists {
+		user, err := model.GetUserCache(userID.(int))
+		if err == nil {
+			userGroup = user.Group
+		}
+	}
+	statuses, err := service.GetPublishedGroupStatuses(service.GetUserUsableGroups(userGroup))
 	if err != nil {
 		common.ApiError(c, err)
 		return
@@ -18,8 +26,8 @@ func GetPublishedModelStatuses(c *gin.Context) {
 	common.ApiSuccess(c, statuses)
 }
 
-func GetManagedModelStatuses(c *gin.Context) {
-	statuses, err := service.GetManagedModelStatuses()
+func GetManagedGroupStatuses(c *gin.Context) {
+	statuses, err := service.GetManagedGroupStatuses()
 	if err != nil {
 		common.ApiError(c, err)
 		return
@@ -27,14 +35,14 @@ func GetManagedModelStatuses(c *gin.Context) {
 	common.ApiSuccess(c, statuses)
 }
 
-func UpdateManagedModelStatus(c *gin.Context) {
-	var update service.ModelStatusUpdate
+func UpdateManagedGroupStatus(c *gin.Context) {
+	var update service.GroupStatusUpdate
 	if err := common.DecodeJson(c.Request.Body, &update); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"success": false, "message": "invalid request payload"})
 		return
 	}
-	if err := service.UpdateModelStatus(update); err != nil {
-		if errors.Is(err, service.ErrInvalidModelStatusUpdate) {
+	if err := service.UpdateGroupStatus(update); err != nil {
+		if errors.Is(err, service.ErrInvalidGroupStatusUpdate) {
 			c.JSON(http.StatusBadRequest, gin.H{"success": false, "message": err.Error()})
 			return
 		}

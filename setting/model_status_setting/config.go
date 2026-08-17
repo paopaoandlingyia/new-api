@@ -9,7 +9,7 @@ import (
 	"github.com/QuantumNous/new-api/setting/config"
 )
 
-const ItemsOptionKey = "model_status_setting.items"
+const GroupsOptionKey = "model_status_setting.groups"
 
 const (
 	StatusAvailable   = "available"
@@ -24,10 +24,10 @@ type Entry struct {
 }
 
 type Setting struct {
-	Items string `json:"items"`
+	Groups string `json:"groups"`
 }
 
-var modelStatusSetting = Setting{Items: "{}"}
+var modelStatusSetting = Setting{Groups: "{}"}
 
 func init() {
 	config.GlobalConfig.Register("model_status_setting", &modelStatusSetting)
@@ -37,33 +37,33 @@ func GetSetting() Setting {
 	return modelStatusSetting
 }
 
-func ParseItems(value string) (map[string]Entry, error) {
-	items := make(map[string]Entry)
-	if err := common.UnmarshalJsonStr(value, &items); err != nil {
-		return nil, fmt.Errorf("invalid model status items: %w", err)
+func ParseGroups(value string) (map[string]Entry, error) {
+	groups := make(map[string]Entry)
+	if err := common.UnmarshalJsonStr(value, &groups); err != nil {
+		return nil, fmt.Errorf("invalid group status entries: %w", err)
 	}
-	if len(items) > 2000 {
-		return nil, fmt.Errorf("model status items cannot exceed 2000 entries")
+	if len(groups) > 500 {
+		return nil, fmt.Errorf("group status entries cannot exceed 500 entries")
 	}
-	for modelName, entry := range items {
-		if modelName != strings.TrimSpace(modelName) || modelName == "" || len(modelName) > 256 {
-			return nil, fmt.Errorf("model status contains an invalid model name")
+	for groupName, entry := range groups {
+		if groupName != strings.TrimSpace(groupName) || groupName == "" || len(groupName) > 128 {
+			return nil, fmt.Errorf("group status contains an invalid group name")
 		}
 		if !IsValidStatus(entry.Status) {
-			return nil, fmt.Errorf("model status for %q is invalid", modelName)
+			return nil, fmt.Errorf("group status for %q is invalid", groupName)
 		}
 		if utf8.RuneCountInString(entry.Message) > 500 {
-			return nil, fmt.Errorf("model status message for %q exceeds 500 characters", modelName)
+			return nil, fmt.Errorf("group status message for %q exceeds 500 characters", groupName)
 		}
 		if entry.UpdatedAt < 1 {
-			return nil, fmt.Errorf("model status update time for %q is invalid", modelName)
+			return nil, fmt.Errorf("group status update time for %q is invalid", groupName)
 		}
 	}
-	return items, nil
+	return groups, nil
 }
 
-func ValidateItems(value string) error {
-	_, err := ParseItems(value)
+func ValidateGroups(value string) error {
+	_, err := ParseGroups(value)
 	return err
 }
 
