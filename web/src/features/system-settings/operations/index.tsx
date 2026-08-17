@@ -71,6 +71,7 @@ export function OperationsSettings() {
       extraArgs={[
         status?.version as string | undefined,
         status?.start_time as number | null | undefined,
+        status?.build_commit as string | null | undefined,
       ]}
       loadingMessage='Loading maintenance settings...'
     />

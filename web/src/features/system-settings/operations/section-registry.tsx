@@ -133,11 +133,13 @@ const OPERATIONS_SECTIONS = [
     build: (
       _settings: OperationsSettings,
       currentVersion?: string | null,
-      startTime?: number | null
+      startTime?: number | null,
+      buildCommit?: string | null
     ) => (
       <UpdateCheckerSection
         currentVersion={currentVersion}
         startTime={startTime}
+        buildCommit={buildCommit}
       />
     ),
   },
@@ -148,7 +150,11 @@ export type OperationsSectionId = (typeof OPERATIONS_SECTIONS)[number]['id']
 const operationsRegistry = createSectionRegistry<
   OperationsSectionId,
   OperationsSettings,
-  [string | null | undefined, number | null | undefined]
+  [
+    string | null | undefined,
+    number | null | undefined,
+    string | null | undefined,
+  ]
 >({
   sections: OPERATIONS_SECTIONS,
   defaultSection: 'behavior',

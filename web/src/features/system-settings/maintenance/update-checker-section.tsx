@@ -39,19 +39,22 @@ type ReleaseInfo = {
 type UpdateCheckerSectionProps = {
   currentVersion?: string | null
   startTime?: number | null
+  buildCommit?: string | null
 }
 
-export function UpdateCheckerSection({
-  currentVersion,
-  startTime,
-}: UpdateCheckerSectionProps) {
+export function UpdateCheckerSection(props: UpdateCheckerSectionProps) {
   const { t } = useTranslation()
   const [checking, setChecking] = useState(false)
   const [dialogOpen, setDialogOpen] = useState(false)
   const [release, setRelease] = useState<ReleaseInfo | null>(null)
 
-  const uptime = startTime ? formatTimestamp(startTime) : t('Unknown')
-  const version = currentVersion || t('Unknown')
+  const uptime = props.startTime
+    ? formatTimestamp(props.startTime)
+    : t('Unknown')
+  const version = props.currentVersion || t('Unknown')
+  const buildCommit = props.buildCommit
+    ? props.buildCommit.slice(0, 12)
+    : t('Unknown')
 
   const handleCheckUpdates = async () => {
     setChecking(true)
@@ -75,7 +78,7 @@ export function UpdateCheckerSection({
         throw new Error(t('Unexpected release payload'))
       }
 
-      if (currentVersion && data.tag_name === currentVersion) {
+      if (props.currentVersion && data.tag_name === props.currentVersion) {
         toast.success(
           t('You are running the latest version ({{version}}).', {
             version: data.tag_name,
@@ -107,12 +110,23 @@ export function UpdateCheckerSection({
     <>
       <SettingsSection title={t('System maintenance')}>
         <div className='space-y-6'>
-          <div className='grid gap-4 md:grid-cols-2'>
+          <div className='grid gap-4 md:grid-cols-3'>
             <div className='rounded-lg border p-4'>
               <div className='text-muted-foreground text-sm'>
-                {t('Current version')}
+                {t('Release version')}
               </div>
               <div className='text-lg font-semibold'>{version}</div>
+            </div>
+            <div className='rounded-lg border p-4'>
+              <div className='text-muted-foreground text-sm'>
+                {t('Build commit')}
+              </div>
+              <div
+                className='font-mono text-lg font-semibold'
+                title={props.buildCommit || undefined}
+              >
+                {buildCommit}
+              </div>
             </div>
             <div className='rounded-lg border p-4'>
               <div className='text-muted-foreground text-sm'>

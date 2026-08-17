@@ -12,6 +12,7 @@ import (
 
 var StartTime = time.Now().Unix() // unit: second
 var Version = "v0.0.0"            // this hard coding will be replaced automatically when building, no need to manually change
+var BuildCommit = "unknown"       // injected separately from Version so release checks and build identification stay independent
 var SystemName = "New API"
 var Footer = ""
 var Logo = ""
