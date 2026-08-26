@@ -33,8 +33,13 @@ func SetApiRouter(router *gin.Engine) {
 		apiRouter.GET("/home_page_content", controller.GetHomePageContent)
 		apiRouter.GET("/pricing", middleware.HeaderNavModuleAuth("pricing"), controller.GetPricing)
 		apiRouter.GET("/model-status", middleware.HeaderNavModuleAuth("modelStatus"), controller.GetPublishedGroupStatuses)
+		apiRouter.GET("/model-status/availability", middleware.HeaderNavModuleAuth("modelStatus"), controller.GetPublishedGroupAvailability)
 		apiRouter.GET("/model-status/manage", middleware.AdminAuth(), controller.GetManagedGroupStatuses)
 		apiRouter.PUT("/model-status/manage", middleware.AdminAuth(), controller.UpdateManagedGroupStatus)
+		apiRouter.GET("/model-status/sources", middleware.AdminAuth(), controller.GetModelStatusSources)
+		apiRouter.POST("/model-status/sources", middleware.AdminAuth(), controller.CreateModelStatusSource)
+		apiRouter.PUT("/model-status/sources/:id", middleware.AdminAuth(), controller.UpdateModelStatusSource)
+		apiRouter.DELETE("/model-status/sources/:id", middleware.AdminAuth(), controller.DeleteModelStatusSource)
 		perfMetricsRoute := apiRouter.Group("/perf-metrics")
 		perfMetricsRoute.Use(middleware.HeaderNavModulePublicOrUserAuth("pricing"))
 		{

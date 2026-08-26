@@ -25,3 +25,22 @@ func TestParseGroupsRejectsInvalidPublishedStatus(t *testing.T) {
 		assert.Error(t, err)
 	}
 }
+
+func TestParseSourcesValidatesGenericAvailabilityBindings(t *testing.T) {
+	sources, err := ParseSources(`[{"id":"source-a","name":"Relay A","url":"https://relay.example/ops/v1/availability","api_key":"secret","enabled":true,"mappings":{"cc-compatible":"compatible","cc-only":"official"}}]`)
+	require.NoError(t, err)
+	require.Len(t, sources, 1)
+	assert.Equal(t, "official", sources[0].Mappings["cc-only"])
+}
+
+func TestParseSourcesRejectsInvalidConfiguration(t *testing.T) {
+	tests := []string{
+		`[{"id":"source-a","name":"Relay A","url":"not-a-url","enabled":true,"mappings":{"cc-only":"official"}}]`,
+		`[{"id":"source-a","name":"Relay A","url":"https://a.example/status","enabled":true,"mappings":{}}]`,
+		`[{"id":"source-a","name":"Relay A","url":"https://a.example/status","enabled":true,"mappings":{"cc-only":"official"}},{"id":"source-a","name":"Relay B","url":"https://b.example/status","enabled":true,"mappings":{"cc-only":"official"}}]`,
+	}
+	for _, input := range tests {
+		_, err := ParseSources(input)
+		assert.Error(t, err)
+	}
+}

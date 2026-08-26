@@ -49,6 +49,7 @@ import { Switch } from '@/components/ui/switch'
 
 import { getManagedGroupStatuses, updateManagedGroupStatus } from './api'
 import { filterGroupStatuses, type VisibilityFilter } from './lib/group-status'
+import { ModelStatusSourceManager } from './source-manager'
 import { GroupStatusBadge } from './status-badge'
 import type {
   GroupStatusItem,
@@ -216,10 +217,12 @@ export function ModelStatusManage() {
         <h1 className='text-xl font-semibold'>{t('Model Status')}</h1>
         <p className='text-muted-foreground mt-1 text-sm'>
           {t(
-            'Publish manually maintained group availability without changing routing or model access.'
+            'Publish automatically observed group availability with an optional manual unavailable override.'
           )}
         </p>
       </header>
+
+      <ModelStatusSourceManager groups={groups} />
 
       <div className='flex flex-wrap items-center gap-3'>
         <Input
@@ -257,7 +260,7 @@ export function ModelStatusManage() {
   )
 }
 
-function GroupStatusSelect(props: {
+export function GroupStatusSelect(props: {
   group: GroupStatusItem
   disabled: boolean
   onUpdate: (update: GroupStatusUpdate) => void
@@ -268,6 +271,35 @@ function GroupStatusSelect(props: {
     maintenance: t('Maintenance'),
     unavailable: t('Unavailable'),
   }[props.group.status]
+
+  if (props.group.automated) {
+    const forcedUnavailable = props.group.status === 'unavailable'
+    return (
+      <div className='flex items-center gap-3'>
+        <GroupStatusBadge status={props.group.status} />
+        <div className='flex items-center gap-2'>
+          <Switch
+            checked={forcedUnavailable}
+            disabled={props.disabled}
+            aria-label={t('Force {{group}} unavailable', {
+              group: props.group.group_name,
+            })}
+            onCheckedChange={(checked) =>
+              props.onUpdate({
+                group_name: props.group.group_name,
+                enabled: true,
+                status: checked ? 'unavailable' : 'available',
+                message: props.group.message ?? '',
+              })
+            }
+          />
+          <span className='text-muted-foreground text-xs'>
+            {t('Force unavailable')}
+          </span>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className='flex items-center gap-2'>

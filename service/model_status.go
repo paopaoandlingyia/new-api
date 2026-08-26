@@ -24,6 +24,12 @@ type GroupStatus struct {
 	Message     string   `json:"message,omitempty"`
 	UpdatedAt   int64    `json:"updated_at,omitempty"`
 	Models      []string `json:"models"`
+	Automated   bool     `json:"automated,omitempty"`
+}
+
+type GroupAvailabilitySummary struct {
+	UpdatedAt int64             `json:"updated_at"`
+	Groups    map[string]string `json:"groups"`
 }
 
 type GroupStatusUpdate struct {
@@ -52,6 +58,25 @@ func GetManagedGroupStatuses() ([]GroupStatus, error) {
 	}
 	pricing := model.GetPricing()
 	return mergeGroupStatuses(pricing, managedGroupDescriptions(pricing), groups, true), nil
+}
+
+func GetPublishedGroupAvailability(usableGroups map[string]string) (GroupAvailabilitySummary, error) {
+	statuses, err := GetPublishedGroupStatuses(usableGroups)
+	if err != nil {
+		return GroupAvailabilitySummary{}, err
+	}
+	return summarizeGroupAvailability(statuses), nil
+}
+
+func summarizeGroupAvailability(statuses []GroupStatus) GroupAvailabilitySummary {
+	summary := GroupAvailabilitySummary{Groups: make(map[string]string, len(statuses))}
+	for _, status := range statuses {
+		summary.Groups[status.GroupName] = status.Status
+		if status.UpdatedAt > summary.UpdatedAt {
+			summary.UpdatedAt = status.UpdatedAt
+		}
+	}
+	return summary
 }
 
 func UpdateGroupStatus(update GroupStatusUpdate) error {
@@ -166,8 +191,14 @@ func mergeGroupStatuses(
 			continue
 		}
 		status := model_status_setting.StatusAvailable
+		updatedAt := entry.UpdatedAt
+		automaticStatus, observedAt, automated := automaticGroupStatus(groupName, time.Now())
 		if enabled {
 			status = entry.Status
+			if automated && status != model_status_setting.StatusUnavailable {
+				status = automaticStatus
+				updatedAt = observedAt
+			}
 		}
 		models := make([]string, 0, len(modelSet))
 		for modelName := range modelSet {
@@ -182,8 +213,9 @@ func mergeGroupStatuses(
 			Enabled:     enabled,
 			Status:      status,
 			Message:     entry.Message,
-			UpdatedAt:   entry.UpdatedAt,
+			UpdatedAt:   updatedAt,
 			Models:      models,
+			Automated:   automated,
 		})
 	}
 	sort.Slice(statuses, func(i, j int) bool {

@@ -210,6 +210,9 @@ func validateOptionValue(key string, value string) error {
 	if key == model_status_setting.GroupsOptionKey {
 		return model_status_setting.ValidateGroups(value)
 	}
+	if key == model_status_setting.SourcesOptionKey {
+		return model_status_setting.ValidateSources(value)
+	}
 	if key == operation_setting.ToolPriceOptionKey {
 		return operation_setting.ValidateToolPricesJSON(value)
 	}

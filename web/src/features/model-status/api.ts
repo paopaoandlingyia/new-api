@@ -18,7 +18,12 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { api } from '@/lib/api'
 
-import type { GroupStatusResponse, GroupStatusUpdate } from './types'
+import type {
+  GroupStatusResponse,
+  GroupStatusUpdate,
+  ModelStatusSourceInput,
+  ModelStatusSourceResponse,
+} from './types'
 
 export async function getPublishedGroupStatuses(): Promise<GroupStatusResponse> {
   const response = await api.get('/api/model-status')
@@ -34,5 +39,32 @@ export async function updateManagedGroupStatus(
   update: GroupStatusUpdate
 ): Promise<{ success: boolean; message?: string }> {
   const response = await api.put('/api/model-status/manage', update)
+  return response.data
+}
+
+export async function getModelStatusSources(): Promise<ModelStatusSourceResponse> {
+  const response = await api.get('/api/model-status/sources')
+  return response.data
+}
+
+export async function createModelStatusSource(
+  input: ModelStatusSourceInput
+): Promise<{ success: boolean; message?: string }> {
+  const response = await api.post('/api/model-status/sources', input)
+  return response.data
+}
+
+export async function updateModelStatusSource(
+  sourceId: string,
+  input: ModelStatusSourceInput
+): Promise<{ success: boolean; message?: string }> {
+  const response = await api.put(`/api/model-status/sources/${sourceId}`, input)
+  return response.data
+}
+
+export async function deleteModelStatusSource(
+  sourceId: string
+): Promise<{ success: boolean; message?: string }> {
+  const response = await api.delete(`/api/model-status/sources/${sourceId}`)
   return response.data
 }

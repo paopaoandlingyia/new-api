@@ -26,6 +26,7 @@ export type GroupStatusItem = {
   message?: string
   updated_at?: number
   models: string[]
+  automated?: boolean
 }
 
 export type GroupStatusResponse = {
@@ -39,4 +40,30 @@ export type GroupStatusUpdate = {
   enabled: boolean
   status: ManualGroupStatus
   message: string
+}
+
+export type ModelStatusSource = {
+  id: string
+  name: string
+  url: string
+  has_api_key: boolean
+  enabled: boolean
+  mappings: Record<string, string>
+  last_success_at?: number
+  last_error?: string
+}
+
+export type ModelStatusSourceInput = {
+  name: string
+  url: string
+  api_key: string
+  clear_api_key: boolean
+  enabled: boolean
+  mappings: Record<string, string>
+}
+
+export type ModelStatusSourceResponse = {
+  success: boolean
+  message?: string
+  data: ModelStatusSource[]
 }
