@@ -33,7 +33,11 @@ func GetAndValidateRequest(c *gin.Context, format types.RelayFormat) (request dt
 			request, err = GetAndValidateGeminiRequest(c)
 		}
 	case types.RelayFormatClaude:
-		request, err = GetAndValidateClaudeRequest(c)
+		if relayMode == relayconstant.RelayModeClaudeCountTokens {
+			request, err = GetAndValidateClaudeCountTokensRequest(c)
+		} else {
+			request, err = GetAndValidateClaudeRequest(c)
+		}
 	case types.RelayFormatOpenAIResponses:
 		request, err = GetAndValidateResponsesRequest(c)
 	case types.RelayFormatOpenAIResponsesCompaction:
@@ -307,6 +311,29 @@ func GetAndValidateClaudeRequest(c *gin.Context) (textRequest *dto.ClaudeRequest
 	//}
 
 	return textRequest, nil
+}
+
+func GetAndValidateClaudeCountTokensRequest(c *gin.Context) (*dto.ClaudeCountTokensRequest, error) {
+	request := &dto.ClaudeCountTokensRequest{}
+	if err := common.UnmarshalBodyReusable(c, request); err != nil {
+		return nil, err
+	}
+	if request.Model == "" {
+		return nil, errors.New("field model is required")
+	}
+	if len(request.Messages) == 0 {
+		return nil, errors.New("field messages is required")
+	}
+	storage, err := common.GetBodyStorage(c)
+	if err != nil {
+		return nil, err
+	}
+	rawBody, err := storage.Bytes()
+	if err != nil {
+		return nil, err
+	}
+	request.RawBody = rawBody
+	return request, nil
 }
 
 func GetAndValidateTextRequest(c *gin.Context, relayMode int) (*dto.GeneralOpenAIRequest, error) {
