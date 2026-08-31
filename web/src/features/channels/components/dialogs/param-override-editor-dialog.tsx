@@ -135,6 +135,7 @@ const OPERATION_MODE_LABEL_MAP = OPERATION_MODE_OPTIONS.reduce<
 
 const CONDITION_MODE_OPTIONS = [
   { label: 'Exact Match', value: 'full' },
+  { label: 'Exists', value: 'exists' },
   { label: 'Prefix', value: 'prefix' },
   { label: 'Suffix', value: 'suffix' },
   { label: 'Contains', value: 'contains' },
@@ -905,7 +906,9 @@ const buildConditionPayload = (
   const payload: Record<string, unknown> = {
     path,
     mode: condition.mode || 'full',
-    value: parseLooseValue(condition.value_text),
+  }
+  if (condition.mode !== 'exists') {
+    payload.value = parseLooseValue(condition.value_text)
   }
   if (condition.invert) payload.invert = true
   if (condition.pass_missing_key) payload.pass_missing_key = true

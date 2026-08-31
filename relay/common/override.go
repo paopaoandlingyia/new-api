@@ -53,7 +53,7 @@ type paramOverrideAuditRecorder struct {
 
 type ConditionOperation struct {
 	Path           string      `json:"path"`             // JSON路径
-	Mode           string      `json:"mode"`             // full, prefix, suffix, contains, gt, gte, lt, lte
+	Mode           string      `json:"mode"`             // full, prefix, suffix, contains, gt, gte, lt, lte, exists
 	Value          interface{} `json:"value"`            // 匹配的值
 	Invert         bool        `json:"invert"`           // 反选功能，true表示取反结果
 	PassMissingKey bool        `json:"pass_missing_key"` // 未获取到json key时的行为
@@ -580,6 +580,24 @@ func checkConditions(data []byte, contextJSON string, conditions []ConditionOper
 }
 
 func checkSingleCondition(data []byte, contextJSON string, condition ConditionOperation) (bool, error) {
+	mode := strings.ToLower(condition.Mode)
+	if mode == "exists" {
+		exists, err := conditionPathExists(data, condition.Path)
+		if err != nil {
+			return false, err
+		}
+		if !exists && contextJSON != "" {
+			exists, err = conditionPathExists([]byte(contextJSON), condition.Path)
+			if err != nil {
+				return false, err
+			}
+		}
+		if condition.Invert {
+			exists = !exists
+		}
+		return exists, nil
+	}
+
 	// 处理负数索引
 	path := processNegativeIndex(data, condition.Path)
 	value := gjson.GetBytes(data, path)
@@ -600,7 +618,7 @@ func checkSingleCondition(data []byte, contextJSON string, condition ConditionOp
 	}
 	targetValue := gjson.ParseBytes(targetBytes)
 
-	result, err := compareGjsonValues(value, targetValue, strings.ToLower(condition.Mode))
+	result, err := compareGjsonValues(value, targetValue, mode)
 	if err != nil {
 		return false, fmt.Errorf("comparison failed for path %s: %v", condition.Path, err)
 	}
@@ -609,6 +627,76 @@ func checkSingleCondition(data []byte, contextJSON string, condition ConditionOp
 		result = !result
 	}
 	return result, nil
+}
+
+func conditionPathExists(data []byte, path string) (bool, error) {
+	const recursivePrefix = "**."
+	if !strings.HasPrefix(path, recursivePrefix) {
+		return gjson.GetBytes(data, path).Exists(), nil
+	}
+
+	path = strings.TrimPrefix(path, recursivePrefix)
+	segments := strings.Split(path, ".")
+	for _, segment := range segments {
+		if strings.TrimSpace(segment) == "" {
+			return false, fmt.Errorf("recursive condition path is invalid: **.%s", path)
+		}
+	}
+
+	if !gjson.ValidBytes(data) {
+		return false, fmt.Errorf("recursive condition requires valid JSON")
+	}
+	return recursiveConditionPathExists(gjson.ParseBytes(data), segments), nil
+}
+
+func recursiveConditionPathExists(node gjson.Result, segments []string) bool {
+	if conditionNodePathExists(node, segments) {
+		return true
+	}
+	if !node.IsObject() && !node.IsArray() {
+		return false
+	}
+
+	found := false
+	node.ForEach(func(_, child gjson.Result) bool {
+		if recursiveConditionPathExists(child, segments) {
+			found = true
+			return false
+		}
+		return true
+	})
+	return found
+}
+
+func conditionNodePathExists(node gjson.Result, segments []string) bool {
+	if len(segments) == 0 {
+		return true
+	}
+	if !node.IsObject() && !node.IsArray() {
+		return false
+	}
+
+	segment := segments[0]
+	found := false
+	index := 0
+	node.ForEach(func(key, child gjson.Result) bool {
+		matches := segment == "*"
+		if node.IsObject() {
+			matches = matches || key.String() == segment
+		} else if node.IsArray() {
+			matches = matches || strconv.Itoa(index) == segment
+		}
+		index++
+		if !matches {
+			return true
+		}
+		if len(segments) == 1 || conditionNodePathExists(child, segments[1:]) {
+			found = true
+			return false
+		}
+		return true
+	})
+	return found
 }
 
 func processNegativeIndex(data []byte, path string) string {
