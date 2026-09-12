@@ -1,14 +1,16 @@
-# rc.37 同步与隔离验证（2026-09-12）
+# rc.37 同步、验证与上线（2026-09-13）
 
 ## 范围与当前状态
 
 用户授权同步上游、保留个人定制，并在 RackNerd 上用生产库副本验证；**2026-09-13 用户回复“是的开始吧”，已授权按下述步骤生产切换，无需再次询问上线许可**。没有视频模型，保留既有价格，不执行表达式价格转换。
 
+**已于北京时间 2026-09-13 04:21 恢复生产访问，公网确认运行 rc.37 / `c11a171f2`，容器 healthy、restart count=0。上线完成，不能再次执行维护或数据库回退脚本。**
+
 - 原工作区：`F:/github-fork-pr/new-api`，`main` / `975ad458cce7c54926854d20b04715913d69eb79`，未改动。
 - 验证工作区：`F:/github-fork-pr/new-api-rc37-validation`，分支 `codex/upstream-rc37-validation`。
 - 上游目标：`v1.0.0-rc.37` / `385d2dfd10d821b25c8a6766bd16eea248cb1652`，相对 rc.25 有 111 个提交。
 - 合并提交 `d7dafb7860d0278d0e76c10dfb8a4cd5ac5fab99`；另采纳上游 `be36cbb8f` 的两处认证测试 QueryClient 修复，得到应用构建提交 **`c11a171f2277b45a11723a6bf19864660c21abd2`**。未引入上游 main 的其余发布后改动。
-- 已构建服务器本地镜像 `new-api-upgrade-test:rc37-c11a171f2`，镜像 ID `sha256:ecb16170859ff256de55fca1eaf2a4254e33b1aa572d26add2e5f4b438f2f493`；没有推送镜像或代码。
+- 已验证镜像在服务器提升为生产标签 `ghcr.io/paopaoandlingyia/new-api:sha-c11a171f2`，镜像 ID `sha256:ecb16170859ff256de55fca1eaf2a4254e33b1aa572d26add2e5f4b438f2f493`；没有推送镜像或代码。生产 `.env` 的 `NEW_API_IMAGE` 指向此标签，compose 的 `pull_policy` 从 `always` 改为 `never`，其余解析后的部署配置及应用环境变量一致。
 - 后续记录提交仅添加此文档，不改变上述已验证应用代码。
 
 ## 更新内容与合并取舍
@@ -52,17 +54,24 @@
 - 本机详细证据、构建与测试脚本：`F:/github-fork-pr/new-api-rc37-artifacts/`。
 - SSH 必须显式使用 `ssh -F C:/Users/Administrator/.ssh/racknerd_latency_20260910.conf racknerd-latency`。默认 SSH 配置有 Windows 所有权问题；不需要改权限。服务端禁止端口转发；不要修改其 SSH 策略。
 - 服务器验证目录：`/opt/new-api-upgrade-test`，权限 700；`compose.json`、数据库快照、环境文件、日志及结果 JSON 都在这里。密钥仅留在服务器私有文件中，禁止打印/提交/复制进报告。
-- 生产配置：`/opt/new-api/docker-compose.yml`；生产容器 `new-api`，旧镜像 `ghcr.io/paopaoandlingyia/new-api:sha-975ad458`。核查时仍 healthy、restart count=0、启动时间 `2026-08-31T15:57:21.270462112Z`。
+- 生产配置：`/opt/new-api/docker-compose.yml`；生产容器 `new-api`，现为上文的 rc.37 固定镜像。旧镜像 `ghcr.io/paopaoandlingyia/new-api:sha-975ad458` 和升级前数据库备份仍保留。
 - 只使用验证目录下的 compose 管理测试服务；停止测试资源可执行 `docker compose -f /opt/new-api-upgrade-test/compose.json stop`，不会删除数据或生产资源。
 
-## 已批准的上线步骤
+## 上线结果与备份
 
-用户已在收到 rc.37 发布说明风险及上线步骤后批准生产切换。执行顺序：短暂维护并等待进行中的请求结束，重新备份生产配置、主库和日志库，固定使用上述已验证镜像，检查启动、登录和实际转发，再恢复访问。此次早先快照仅用于验证，不能替代切换时的新备份。
+已执行维护、请求排空和批量计费写入等待、停止旧应用、新备份、固定镜像切换、生产验证和恢复访问。实际维护约 10 分钟（UTC 20:10:56 至 20:21:18），其中多数时间耗在一次性运维检查的修正；数据库备份和新版启动约一分钟。
+
+- 本次切换前新备份：`/opt/new-api-backups/20260912T200711Z-before-rc37/`，仅服务器可读。包含主库和日志库一致性备份 `databases.sql.gz`（32,688,225 字节，gzip 完整性校验通过）、部署配置、Redis RDB、应用数据、旧版和候选镜像归档（113,252,864 字节）及校验清单。早先隔离测试快照不是这次备份。
+- 升级前后原有用户余额/密码、令牌额度、渠道密钥/模型/覆盖配置、价格、订阅的哈希一致；生产环境变量和端口映射保持一致。
+- 生产 HTTPS 登录、刷新、注销和权限检查通过。refresh Cookie 为 Secure / HttpOnly / SameSite=Strict；另有正常的、供前端读取的 `new_api_has_session` 标记 Cookie。
+- 真实 Qwen3.8-27B 请求通过原有 `qwen` 分组返回 200（0.73 秒）；用户、令牌、消费日志均扣 2 quota。临时账号软删除并停用、临时令牌撤销并停用，全部临时会话已撤销。测试未改变任何已有账号余额。
+- 原站点 Nginx 配置已原样恢复，四条临时维护防火墙规则全部撤除；隔离测试服务保持停止。公网 `/api/status` 确认 rc.37 / `c11a171f2`。
+- 安全结果文件：服务器 `/opt/new-api-upgrade-test/production-rc37-result.json`，本机同名文件在 artifacts 目录。账号和 Cookie 文件仅留在服务器私有备份中，禁止打印或下载。
 
 升级包含数据库迁移和新密码哈希写入；**不能假定只换回旧镜像就能安全回滚**。维护窗口内失败时恢复匹配的旧镜像和数据库备份；一旦开放业务，再回滚数据库需要先处理升级后的新账务数据，防止丢失。既有价格继续保留，不顺便转换表达式。Gemini 权限问题另行征得授权后处理。
 
-### 2026-09-13 连接阻塞
+## 后续工作方式
 
-开始执行时 SSH 在 banner、密钥交换或认证阶段超时/断开；Windows OpenSSH、Git OpenSSH、Paramiko 经现有 Clash 代理或直连均未取得远程命令执行能力。TCP 端口可响应 OpenSSH banner，不足以证明 SSH 会话正常；尚不能确认根因。保留了已有主机指纹和密钥校验，没有修改 SSH、代理或防火墙配置。
+用户指出此次脚本与验证流程过重。后续默认沿用其已有的“合并代码 → GitHub 构建镜像 → 备份 → 升级检查”流程，只为具体风险增加专项验证，不重复本次全套验证或把一次性脚本建设成长期系统。本次代码仍在本机验证分支、原 main 未改动，镜像仅在服务器；尚未发布到 GitHub/GHCR，不要假定此标签能从仓库拉取。
 
-公网 GET `/api/status` 返回 success=true、`v1.0.0-rc.25` / `975ad458cce7c54926854d20b04715913d69eb79`。**未进入维护、未执行新备份、未更改生产容器/配置/数据库**。连接恢复后继续已授权上线，先重新核对生产状态和候选镜像，不能把此前的健康状态视为本次已通过 SSH 核查。
+连接阻塞在用户开启虚拟网卡后消失，继续使用原 SSH 配置及主机指纹。运维检查曾因内核缺少规则 comment 模块、Cloudflare 拒绝服务器公网自检、脚本未跟随 `/model-status/` 的正常重定向及丢失重复 Set-Cookie 头而中断；修正的均为临时脚本，没有改产品逻辑或服务器模块。首次临时令牌误选 default 分组，请求在分发前被拒；改选现有 qwen 分组后成功，无渠道配置变更。
