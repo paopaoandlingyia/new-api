@@ -45,6 +45,7 @@ import {
 import { SettingsPageFormActions } from '../components/settings-page-context'
 import { SettingsSection } from '../components/settings-section'
 import { useUpdateOption } from '../hooks/use-update-option'
+import { isValidConcurrencyLimitJSON } from './concurrency-limit-validation'
 import { RateLimitVisualEditor } from './rate-limit-visual-editor'
 
 const isValidJSON = (value: string | undefined) => {
@@ -76,6 +77,11 @@ const createRateLimitSchema = (t: (key: string) => string) =>
       .string()
       .optional()
       .refine(isValidJSON, {
+        message: t('Invalid JSON format or values out of allowed range'),
+      }),
+    ModelRequestConcurrencyLimitGroup: z
+      .string()
+      .refine(isValidConcurrencyLimitJSON, {
         message: t('Invalid JSON format or values out of allowed range'),
       }),
   })
@@ -161,7 +167,7 @@ export function RateLimitSection({ defaultValues }: RateLimitSectionProps) {
                         step={1}
                         {...field}
                         onChange={(e) =>
-                          field.onChange(parseInt(e.target.value) || 0)
+                          field.onChange(Number.parseInt(e.target.value) || 0)
                         }
                       />
                       <span className='text-muted-foreground text-sm'>
@@ -192,7 +198,7 @@ export function RateLimitSection({ defaultValues }: RateLimitSectionProps) {
                         step={1}
                         {...field}
                         onChange={(e) =>
-                          field.onChange(parseInt(e.target.value) || 0)
+                          field.onChange(Number.parseInt(e.target.value) || 0)
                         }
                       />
                       <span className='text-muted-foreground text-sm'>
@@ -223,7 +229,7 @@ export function RateLimitSection({ defaultValues }: RateLimitSectionProps) {
                         step={1}
                         {...field}
                         onChange={(e) =>
-                          field.onChange(parseInt(e.target.value) || 1)
+                          field.onChange(Number.parseInt(e.target.value) || 1)
                         }
                       />
                       <span className='text-muted-foreground text-sm'>
@@ -313,6 +319,47 @@ export function RateLimitSection({ defaultValues }: RateLimitSectionProps) {
                     </div>
                   </FormDescription>
                 )}
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+
+          <FormField
+            control={form.control}
+            name='ModelRequestConcurrencyLimitGroup'
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>{t('Per-user concurrency limits')}</FormLabel>
+                <FormControl>
+                  <JsonCodeEditor
+                    value={field.value}
+                    onChange={field.onChange}
+                    name={field.name}
+                    onBlur={field.onBlur}
+                    textareaRef={field.ref}
+                    placeholder={`{\n  "cheap": 1,\n  "premium": 3\n}`}
+                    aria-invalid={Boolean(
+                      form.formState.errors.ModelRequestConcurrencyLimitGroup
+                    )}
+                  />
+                </FormControl>
+                <FormDescription>
+                  <div className='space-y-1 text-xs'>
+                    <p>
+                      {t(
+                        'The value is the maximum number of in-flight requests for each user in that token group.'
+                      )}
+                    </p>
+                    <p>
+                      {t(
+                        'These concurrency limits apply independently of the request-rate switch above.'
+                      )}
+                    </p>
+                    <p>
+                      {t('Use an empty object to disable concurrency limits.')}
+                    </p>
+                  </div>
+                </FormDescription>
                 <FormMessage />
               </FormItem>
             )}

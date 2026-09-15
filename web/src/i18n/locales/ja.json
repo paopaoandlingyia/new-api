@@ -6561,6 +6561,10 @@
     "The endpoint must return generated_at and an availability map of boolean keys.": "エンドポイントはgenerated_atと真偽値のavailabilityマップを返す必要があります。",
     "Unable to load status sources": "ステータスソースを読み込めません",
     "Waiting for sync": "同期待ち",
-    "{{count}} group mappings": "{{count}}件のグループマッピング"
+    "{{count}} group mappings": "{{count}}件のグループマッピング",
+    "Per-user concurrency limits": "ユーザーごとの同時実行制限",
+    "The value is the maximum number of in-flight requests for each user in that token group.": "各値は、そのトークングループ内でユーザーごとに許可される処理中リクエストの最大数です。",
+    "These concurrency limits apply independently of the request-rate switch above.": "この同時実行制限は、上のリクエストレートスイッチとは独立して適用されます。",
+    "Use an empty object to disable concurrency limits.": "同時実行制限を無効にするには空のオブジェクトを使用します。"
   }
 }

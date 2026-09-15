@@ -6561,6 +6561,10 @@
     "The endpoint must return generated_at and an availability map of boolean keys.": "Endpoint phải trả về generated_at và ánh xạ availability gồm các giá trị boolean.",
     "Unable to load status sources": "Không thể tải nguồn trạng thái",
     "Waiting for sync": "Đang chờ đồng bộ",
-    "{{count}} group mappings": "{{count}} ánh xạ nhóm"
+    "{{count}} group mappings": "{{count}} ánh xạ nhóm",
+    "Per-user concurrency limits": "Giới hạn đồng thời theo người dùng",
+    "The value is the maximum number of in-flight requests for each user in that token group.": "Mỗi giá trị là số yêu cầu đang xử lý tối đa cho mỗi người dùng trong nhóm token đó.",
+    "These concurrency limits apply independently of the request-rate switch above.": "Các giới hạn đồng thời này hoạt động độc lập với công tắc giới hạn tốc độ ở trên.",
+    "Use an empty object to disable concurrency limits.": "Dùng một đối tượng rỗng để tắt giới hạn đồng thời."
   }
 }

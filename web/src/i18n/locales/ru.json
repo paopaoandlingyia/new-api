@@ -6561,6 +6561,10 @@
     "The endpoint must return generated_at and an availability map of boolean keys.": "Эндпоинт должен возвращать generated_at и карту availability с логическими значениями.",
     "Unable to load status sources": "Не удалось загрузить источники статуса",
     "Waiting for sync": "Ожидание синхронизации",
-    "{{count}} group mappings": "Сопоставлений групп: {{count}}"
+    "{{count}} group mappings": "Сопоставлений групп: {{count}}",
+    "Per-user concurrency limits": "Лимиты параллельных запросов на пользователя",
+    "The value is the maximum number of in-flight requests for each user in that token group.": "Каждое значение задаёт максимальное число активных запросов для одного пользователя в этой группе токенов.",
+    "These concurrency limits apply independently of the request-rate switch above.": "Эти лимиты параллельных запросов действуют независимо от переключателя ограничения частоты выше.",
+    "Use an empty object to disable concurrency limits.": "Чтобы отключить лимиты параллельных запросов, используйте пустой объект."
   }
 }

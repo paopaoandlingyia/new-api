@@ -6561,6 +6561,10 @@
     "The endpoint must return generated_at and an availability map of boolean keys.": "The endpoint must return generated_at and an availability map of boolean keys.",
     "Unable to load status sources": "Unable to load status sources",
     "Waiting for sync": "Waiting for sync",
-    "{{count}} group mappings": "{{count}} group mappings"
+    "{{count}} group mappings": "{{count}} group mappings",
+    "Per-user concurrency limits": "Per-user concurrency limits",
+    "The value is the maximum number of in-flight requests for each user in that token group.": "The value is the maximum number of in-flight requests for each user in that token group.",
+    "These concurrency limits apply independently of the request-rate switch above.": "These concurrency limits apply independently of the request-rate switch above.",
+    "Use an empty object to disable concurrency limits.": "Use an empty object to disable concurrency limits."
   }
 }

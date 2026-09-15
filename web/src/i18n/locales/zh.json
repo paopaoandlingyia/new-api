@@ -6561,6 +6561,10 @@
     "The endpoint must return generated_at and an availability map of boolean keys.": "接口必须返回 generated_at 和由布尔值组成的 availability 映射。",
     "Unable to load status sources": "无法加载状态来源",
     "Waiting for sync": "等待同步",
-    "{{count}} group mappings": "{{count}} 个分组映射"
+    "{{count}} group mappings": "{{count}} 个分组映射",
+    "Per-user concurrency limits": "单用户并发限制",
+    "The value is the maximum number of in-flight requests for each user in that token group.": "每个值表示该令牌分组中单个用户允许的最大在途请求数。",
+    "These concurrency limits apply independently of the request-rate switch above.": "并发限制独立于上方的请求速率开关生效。",
+    "Use an empty object to disable concurrency limits.": "使用空对象可关闭并发限制。"
   }
 }

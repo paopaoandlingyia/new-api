@@ -6561,6 +6561,10 @@
     "The endpoint must return generated_at and an availability map of boolean keys.": "端點必須回傳 generated_at 與由布林值組成的 availability 映射。",
     "Unable to load status sources": "無法載入狀態來源",
     "Waiting for sync": "等待同步",
-    "{{count}} group mappings": "{{count}} 個分組映射"
+    "{{count}} group mappings": "{{count}} 個分組映射",
+    "Per-user concurrency limits": "單一使用者並行限制",
+    "The value is the maximum number of in-flight requests for each user in that token group.": "每個值表示該 Token 分組中每位使用者允許的最大處理中請求數。",
+    "These concurrency limits apply independently of the request-rate switch above.": "並行限制獨立於上方的請求速率開關生效。",
+    "Use an empty object to disable concurrency limits.": "使用空物件可停用並行限制。"
   }
 }

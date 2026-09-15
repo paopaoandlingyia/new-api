@@ -6561,6 +6561,10 @@
     "The endpoint must return generated_at and an availability map of boolean keys.": "Le point de terminaison doit renvoyer generated_at et une table availability de valeurs booléennes.",
     "Unable to load status sources": "Impossible de charger les sources d’état",
     "Waiting for sync": "En attente de synchronisation",
-    "{{count}} group mappings": "{{count}} associations de groupes"
+    "{{count}} group mappings": "{{count}} associations de groupes",
+    "Per-user concurrency limits": "Limites de concurrence par utilisateur",
+    "The value is the maximum number of in-flight requests for each user in that token group.": "Chaque valeur correspond au nombre maximal de requêtes en cours par utilisateur dans ce groupe de jetons.",
+    "These concurrency limits apply independently of the request-rate switch above.": "Ces limites de concurrence s’appliquent indépendamment de l’interrupteur de débit ci-dessus.",
+    "Use an empty object to disable concurrency limits.": "Utilisez un objet vide pour désactiver les limites de concurrence."
   }
 }
