@@ -4,12 +4,15 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
 	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/constant"
+	"github.com/QuantumNous/new-api/setting"
 	"github.com/alicebob/miniredis/v2"
 	"github.com/gin-gonic/gin"
 	"github.com/go-redis/redis/v8"
@@ -222,4 +225,135 @@ func TestRedisFailurePolicies(t *testing.T) {
 	assert.Equal(t, http.StatusInternalServerError, userResponse.Code)
 	assert.Empty(t, userResponse.Body.String())
 	assert.Equal(t, http.StatusNoContent, performRateLimitRequest(router, "/email", "192.0.2.62:12345").Code)
+}
+
+func useModelRequestConcurrencyLimits(t *testing.T, limits string) {
+	t.Helper()
+
+	previousLimits := setting.ModelRequestConcurrencyLimitGroup2JSONString()
+	require.NoError(t, setting.UpdateModelRequestConcurrencyLimitGroupByJSONString(limits))
+	t.Cleanup(func() {
+		require.NoError(t, setting.UpdateModelRequestConcurrencyLimitGroupByJSONString(previousLimits))
+	})
+}
+
+func resetMemoryModelRequestConcurrencyLimiter(t *testing.T) {
+	t.Helper()
+
+	modelRequestMemoryConcurrencyLimiter.mutex.Lock()
+	previousActive := modelRequestMemoryConcurrencyLimiter.active
+	modelRequestMemoryConcurrencyLimiter.active = make(map[string]int)
+	modelRequestMemoryConcurrencyLimiter.mutex.Unlock()
+	t.Cleanup(func() {
+		modelRequestMemoryConcurrencyLimiter.mutex.Lock()
+		modelRequestMemoryConcurrencyLimiter.active = previousActive
+		modelRequestMemoryConcurrencyLimiter.mutex.Unlock()
+	})
+}
+
+func modelRequestConcurrencyRouter(started chan<- struct{}, release <-chan struct{}) *gin.Engine {
+	router := gin.New()
+	router.GET(
+		"/relay",
+		func(c *gin.Context) {
+			userID, err := strconv.Atoi(c.Query("user"))
+			if err != nil {
+				c.AbortWithStatus(http.StatusBadRequest)
+				return
+			}
+			c.Set("id", userID)
+			common.SetContextKey(c, constant.ContextKeyTokenGroup, c.Query("group"))
+		},
+		ModelRequestConcurrencyLimit(),
+		func(c *gin.Context) {
+			if c.Query("hold") == "true" {
+				started <- struct{}{}
+				<-release
+			}
+			c.Status(http.StatusNoContent)
+		},
+	)
+	return router
+}
+
+func TestMemoryModelRequestConcurrencyLimitScopesAndReleases(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	useModelRequestConcurrencyLimits(t, `{"cheap":1,"other":1}`)
+	resetMemoryModelRequestConcurrencyLimiter(t)
+
+	previousRedisEnabled := common.RedisEnabled
+	common.RedisEnabled = false
+	t.Cleanup(func() { common.RedisEnabled = previousRedisEnabled })
+
+	started := make(chan struct{}, 1)
+	release := make(chan struct{})
+	router := modelRequestConcurrencyRouter(started, release)
+	firstResponse := make(chan *httptest.ResponseRecorder, 1)
+	go func() {
+		firstResponse <- performRateLimitRequest(router, "/relay?user=1&group=cheap&hold=true", "192.0.2.70:12345")
+	}()
+	<-started
+
+	limited := performRateLimitRequest(router, "/relay?user=1&group=cheap", "192.0.2.71:12345")
+	assert.Equal(t, http.StatusTooManyRequests, limited.Code)
+	assert.Equal(t, "1", limited.Header().Get("Retry-After"))
+	assert.Contains(t, limited.Body.String(), "Too many concurrent requests for this group")
+	assert.Equal(t, http.StatusNoContent, performRateLimitRequest(router, "/relay?user=2&group=cheap", "192.0.2.72:12345").Code)
+	assert.Equal(t, http.StatusNoContent, performRateLimitRequest(router, "/relay?user=1&group=other", "192.0.2.73:12345").Code)
+
+	close(release)
+	assert.Equal(t, http.StatusNoContent, (<-firstResponse).Code)
+	assert.Equal(t, http.StatusNoContent, performRateLimitRequest(router, "/relay?user=1&group=cheap", "192.0.2.74:12345").Code)
+}
+
+func TestRedisModelRequestConcurrencyLimitSharesAndReleasesLease(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	redisServer, redisClient := useRateLimitMiniRedis(t)
+	useModelRequestConcurrencyLimits(t, `{"cheap":1}`)
+
+	started := make(chan struct{}, 1)
+	release := make(chan struct{})
+	router := modelRequestConcurrencyRouter(started, release)
+	firstResponse := make(chan *httptest.ResponseRecorder, 1)
+	go func() {
+		firstResponse <- performRateLimitRequest(router, "/relay?user=7&group=cheap&hold=true", "192.0.2.80:12345")
+	}()
+	<-started
+
+	key := modelRequestConcurrencyKey("cheap", 7)
+	active, err := redisClient.ZCard(context.Background(), key).Result()
+	require.NoError(t, err)
+	assert.Equal(t, int64(1), active)
+	limited := performRateLimitRequest(router, "/relay?user=7&group=cheap", "192.0.2.81:12345")
+	assert.Equal(t, http.StatusTooManyRequests, limited.Code)
+	assert.Equal(t, "1", limited.Header().Get("Retry-After"))
+
+	close(release)
+	assert.Equal(t, http.StatusNoContent, (<-firstResponse).Code)
+	assert.False(t, redisServer.Exists(key))
+	assert.Equal(t, http.StatusNoContent, performRateLimitRequest(router, "/relay?user=7&group=cheap", "192.0.2.82:12345").Code)
+}
+
+func TestModelRequestConcurrencyLimitConfigurationValidation(t *testing.T) {
+	for _, test := range []struct {
+		name    string
+		value   string
+		wantErr bool
+	}{
+		{name: "empty object disables limits", value: `{}`},
+		{name: "positive group limit", value: `{"cheap":1}`},
+		{name: "null is not an object", value: `null`, wantErr: true},
+		{name: "empty group", value: `{"":1}`, wantErr: true},
+		{name: "zero limit", value: `{"cheap":0}`, wantErr: true},
+		{name: "negative limit", value: `{"cheap":-1}`, wantErr: true},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			err := setting.CheckModelRequestConcurrencyLimitGroup(test.value)
+			if test.wantErr {
+				assert.Error(t, err)
+				return
+			}
+			require.NoError(t, err)
+		})
+	}
 }
