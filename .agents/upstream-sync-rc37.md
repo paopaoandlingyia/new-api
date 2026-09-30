@@ -35,11 +35,40 @@
 - 保留独立 Claude `count_tokens`、递归参数覆盖、模型状态页及来源管理、管理员上游账号日志、条件错误日志、统计隐私处理、HTML no-store、版本与构建号展示、1Panel 部署配置及个人镜像工作流。既有管理员定价配置不改写。
 - 上游新增认证、请求策略、任务插件等功能随发布版整体同步，不另行重构。旧的 Custom OAuth 布尔字段迁移修复继续保留。
 
-前端 typecheck、生产构建、57 个测试文件 / 825 项测试通过；Go 主模块和独立 `relaykit` 构建通过。Linux 控制器 406 项顶层测试、服务层和统计测试通过，其余相关后端包通过。Windows 认证测试遇到 SQLite 文件仍占用的清理失败，Linux 复核通过；Windows 渠道亲和性测试的时间戳冲突在 Linux 未复现。
+前端 typecheck、生产构建、57 个测试文件 / 825 项测试通过；Go 主模块和独立 `relaykit` 构建通过。Linux 控制器 406 项顶层测试、服务层和统计测试通过，其余相关后端包通过。Windows 认证测试遇到 SQLite 文件仍占用的清理失败，Linux 复核通过；渠道亲和性统计测试也在 Windows 失败、Linux 通过，未为此修改上游生产实现。
 
-真实数据库升级验证正在隔离环境完成，未接触生产库。最终结果补充于本节后再推进生产候选代码。
+真实数据库验证通过：SQLite **3.50.4**、MySQL **8.0.46**、PostgreSQL **18.4**。三个引擎分别验证 rc.41 新装、当前生产 rc.37 并发版升级、官方 rc.40 升级，共九个场景；每个场景启动候选版两次，核对用户余额、令牌额度、活跃订阅、禁用套餐、六位小数价格、日志和配置，并验证唯一性及两次启动的列、索引结构一致。MySQL/PostgreSQL 使用独立主库和日志库，SQLite 使用上游默认的同库配置。旧订阅自定义列及原上游账号日志保留，未接触生产库。
 
-全仓库 lint 仍有既有错误（本次检查 181 个）；格式检查也发现上游文件的既有差异。冲突处理中修改的前端文件通过定向 lint，未扩大范围处理其他文件。没有进行物理 Passkey 或第三方 SSO 实际账号验证。认证参考 OWASP Authentication / Session Management Cheat Sheets 和 ASVS 5.0；使用上游认证回归测试验证权限、过期、重放及敏感操作，不宣称全站 ASVS 合规。
+验证命令及结果：
+
+```sh
+# 主模块及独立协议模块：均通过
+GOWORK=off go build ./...
+cd relaykit && GOWORK=off go build ./...
+
+# 相关后端包：通过；控制器、服务层和统计包另在 Linux 运行测试二进制通过
+go test ./model ./relay ./relay/channel/claude ./relay/common ./relay/helper ./setting/model_status_setting ./middleware
+
+# 前端：通过
+cd web && bun run typecheck && bun run build
+# 本次前端相关测试共 57 文件 / 825 项通过，定向 oxlint 通过
+
+# 隔离服务器：新装和升级启动、数据与 schema 对比通过
+bash db-prep.sh
+bash db-test.sh
+# 最后一个 PostgreSQL 场景在调整脚本等待条件后续跑通过
+bash db-resume.sh
+bash db-final-check.sh
+
+# 使用上述真实 MySQL/PostgreSQL 测试库运行，SQLite 也实际运行：通过
+TEST_MYSQL_DSN='<isolated mysql DSN>' TEST_POSTGRES_DSN='<isolated postgres DSN>' \
+  ./model-rc41.test -test.v -test.timeout=180s \
+  -test.run='Test(MigrationSchemaStability|RequestPolicyDatabaseMatrix|MigrateTokenKeyUniqueness|MigratePrefillGroupUniqueness|UserSessionPreviousRefreshHashMigration)'
+```
+
+隔离验证使用合成数据和既有镜像中的旧二进制，无生产数据库副本或真实凭据。一处脚本生命周期问题已定位：HTTP 监听先于上游退出信号注册约 100ms，验证脚本改为同时等待 `/api/status` 成功和启动完成日志，不修改应用实现。一次性脚本、二进制和测试容器在完成后清理，不作为日常部署依赖。ClickHouse 未做真实实例验证，本次其驱动和既有本站日志扩展没有变更。
+
+全仓库 lint 仍有既有错误（本次检查 181 个，涉及的 100 个文件均与 rc.41 上游完全一致）；格式检查也发现上游文件的既有差异。冲突处理中修改的前端文件通过定向 lint，未扩大范围处理其他文件。没有进行物理 Passkey 或第三方 SSO 实际账号验证。认证参考 [OWASP Authentication](https://cheatsheetseries.owasp.org/cheatsheets/Authentication_Cheat_Sheet.html)、[Session Management](https://cheatsheetseries.owasp.org/cheatsheets/Session_Management_Cheat_Sheet.html) 和 [ASVS 5.0](https://owasp.org/www-project-application-security-verification-standard/)；使用上游认证回归测试验证权限、过期、重放及敏感操作，不宣称全站 ASVS 合规。
 
 整合前 `main`、生产并发版、旧 Claude effort 和 count_tokens 分支提交通过 `archive/2026-09-30/*` 标签保留，便于恢复源码。数据库升级后的生产回退必须结合当时的备份及账务变化评估，不能仅靠切换旧镜像或恢复旧库。
 
