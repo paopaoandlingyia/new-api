@@ -1,15 +1,18 @@
 package claude
 
 import (
+	"fmt"
 	"net/http/httptest"
 	"strings"
 	"testing"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/constant"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/relay/helper"
 	"github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/QuantumNous/new-api/relaykit/relayconvert"
+	"github.com/QuantumNous/new-api/relaykit/types"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -17,6 +20,48 @@ import (
 
 func commonPointer[T any](value T) *T {
 	return &value
+}
+
+func TestClaudeRefusalCategory(t *testing.T) {
+	tests := []struct {
+		name     string
+		details  string
+		reason   string
+		category string
+		refused  bool
+	}{
+		{name: "cyber", details: `{"type":"refusal","category":"cyber","explanation":"not retained in logs"}`, reason: "refusal", category: "cyber", refused: true},
+		{name: "future category", details: `{"type":"refusal","category":"future_category"}`, reason: "refusal", category: "future_category", refused: true},
+		{name: "null category", details: `{"type":"refusal","category":null,"explanation":null}`, reason: "refusal", refused: true},
+		{name: "missing details", details: `null`, reason: "refusal", refused: true},
+		{name: "normal completion", details: `null`, reason: "end_turn"},
+	}
+	for _, streaming := range []bool{false, true} {
+		for _, tc := range tests {
+			t.Run(fmt.Sprintf("streaming=%t/%s", streaming, tc.name), func(t *testing.T) {
+				c, _ := gin.CreateTestContext(httptest.NewRecorder())
+				info := &relaycommon.RelayInfo{
+					RelayFormat: types.RelayFormatClaude,
+					ChannelMeta: &relaycommon.ChannelMeta{},
+				}
+				claudeInfo := &ClaudeResponseInfo{Usage: &dto.Usage{}}
+				payload := fmt.Sprintf(`{"type":"message","stop_reason":%q,"stop_details":%s,"usage":{"input_tokens":12,"output_tokens":0}}`, tc.reason, tc.details)
+				if streaming {
+					payload = fmt.Sprintf(`{"type":"message_delta","delta":{"stop_reason":%q,"stop_details":%s},"usage":{"output_tokens":0}}`, tc.reason, tc.details)
+					require.Nil(t, HandleStreamResponseData(c, info, claudeInfo, payload))
+				} else {
+					require.Nil(t, HandleClaudeResponseData(c, info, claudeInfo, nil, []byte(payload)))
+				}
+				assert.Equal(t, tc.refused, info.PerformanceBusinessRejection)
+				assert.Equal(t, tc.category, common.GetContextKeyString(c, constant.ContextKeyAdminRefusalCategory))
+				if tc.refused {
+					assert.Equal(t, "claude_stop_reason=refusal", common.GetContextKeyString(c, constant.ContextKeyAdminRejectReason))
+				} else {
+					assert.Empty(t, common.GetContextKeyString(c, constant.ContextKeyAdminRejectReason))
+				}
+			})
+		}
+	}
 }
 
 func TestResponseOpenAI2ClaudeToolUseInputIsObject(t *testing.T) {

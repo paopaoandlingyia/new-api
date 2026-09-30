@@ -32,7 +32,7 @@
 - 订阅控制器、支付、模型及界面恢复为 rc.41 上游实现，移除本站“余额专用”和“同时生效上限”。保留上游原生订阅功能及已有订阅、余额数据；旧自定义字段保留在数据库中但不再参与业务判断。
 - 不整合分组并发分支；本站自定义并发规则不进入新 `main`。
 - Claude 单次请求 effort 修复直接采用上游代码，移除重复修复及旧测试。统计归因也采用上游新的拒绝、流式失败和客户端取消处理。
-- 保留独立 Claude `count_tokens`、模型状态页及来源管理、管理员上游账号日志、条件错误日志、统计隐私处理、HTML no-store、版本与构建号展示、1Panel 部署配置及个人镜像工作流。既有管理员定价配置不改写。
+- 保留独立 Claude `count_tokens`、模型状态页及来源管理、管理员上游账号和 Claude 拒绝类别日志、条件错误日志、统计隐私处理、HTML no-store、版本与构建号展示、1Panel 部署配置及个人镜像工作流。既有管理员定价配置不改写。
 - 上游新增认证、请求策略、任务插件等功能随发布版整体同步，不另行重构。旧的 Custom OAuth 布尔字段迁移补丁经三数据库验证后移除，恢复上游迁移行为。
 
 用户随后确认移除自定义参数条件 `exists` 及 `**.` 递归路径，后端和参数编辑器恢复为 rc.41 上游实现。缓存规则使用原生通配符统一已有 TTL 为 `1h`，再用 `@dig:cache_control|#` / `lt` / `4` 条件在有空余名额时补充顶层一小时自动缓存；递归计数也会统计非协议位置的同名字段。原来使用 `exists` 的渠道规则须在部署新代码前替换，未自动修改生产配置。后端 `go test ./relay/common`、前端类型检查、定向 lint/格式检查通过；完整规则的无标记、一/三/四个显式标记、顶层加三个显式标记共五类输入验证通过，未调用上游验证真实缓存命中。当前 shell 无 Bun，前端检查使用现有 npm 脚本和本地工具，未改依赖。
@@ -75,6 +75,16 @@ TEST_MYSQL_DSN='<isolated mysql DSN>' TEST_POSTGRES_DSN='<isolated postgres DSN>
 全仓库 lint 仍有既有错误（本次检查 181 个，涉及的 100 个文件均与 rc.41 上游完全一致）；格式检查也发现上游文件的既有差异。冲突处理中修改的前端文件通过定向 lint，未扩大范围处理其他文件。没有进行物理 Passkey 或第三方 SSO 实际账号验证。认证参考 [OWASP Authentication](https://cheatsheetseries.owasp.org/cheatsheets/Authentication_Cheat_Sheet.html)、[Session Management](https://cheatsheetseries.owasp.org/cheatsheets/Session_Management_Cheat_Sheet.html) 和 [ASVS 5.0](https://owasp.org/www-project-application-security-verification-standard/)；使用上游认证回归测试验证权限、过期、重放及敏感操作，不宣称全站 ASVS 合规。
 
 整合前 `main`、生产并发版、旧 Claude effort 和 count_tokens 分支提交通过 `archive/2026-09-30/*` 标签保留，便于恢复源码。数据库升级后的生产回退必须结合当时的备份及账务变化评估，不能仅靠切换旧镜像或恢复旧库。
+
+## Claude 拒绝日志标记
+
+用户要在大量日志中直接辨认 HTTP 200 的 Claude 拒绝请求，并确认同时记录类别。上游和生产 `0575582b` 已记录 `other.admin_info.reject_reason = "claude_stop_reason=refusal"`，原界面仅在管理员详情显示；现在桌面表格时间列和手机列表增加共用 `RefusalBadge`，与原消费标签并列显示红色“拒绝”或“拒绝 · cyber”等标记。复用 `StatusBadge`，普通用户和管理员个人日志视图不显示管理员信息。
+
+Claude 非流式响应和 SSE `message_delta.delta` 解析 `stop_details.category`，Claude 转 Responses 的流式路径也传递类别；结算写入现有 `other.admin_info.refusal_category`，详情同步展示。保留原始类别代码（包括以后新增的类别），不记录自由文本 explanation，不推断缺失/null 类别。历史日志有拒绝原因即可显示标记，原来未保存的类别无法回填。无数据库结构、SQL 查询、计费或拒绝重试行为变化，未修改 claudeRelay、生产渠道配置或生产容器。
+
+已通过：`go test ./relay/channel/claude -count=1`（流式/非流式类别及 null/缺失/普通完成）；服务层定向结算和 SQLite 固定价格日志回归；主模块 `GOWORK=off go build ./...`；`cd relaykit && GOWORK=off go build ./... && go test ./dto ./relayconvert/...`。前端类型检查、定向 lint/格式检查、生产构建通过；拒绝原因、手机列表和详情预览三个测试文件共 53 项通过，覆盖管理员边界、旧日志、已知及未来类别、语言切换。七种语言标签已同步；当前 shell 无 Bun，运行现有 npm 脚本与本地 Node 工具，未改依赖。尚未调用真实上游验证新类别，未部署。
+
+协议依据：[Anthropic Refusals and fallback](https://platform.claude.com/docs/en/build-with-claude/refusals-and-fallback)。类别可为 null，拒绝仍以 `stop_reason = "refusal"` 判定。
 
 ## 2026-10-01 OAuth 历史迁移补丁验证
 

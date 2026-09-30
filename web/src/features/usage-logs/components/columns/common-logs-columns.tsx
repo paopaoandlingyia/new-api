@@ -74,6 +74,7 @@ import type { LogOtherData } from '../../types'
 import { DetailsDialog } from '../dialogs/details-dialog'
 import { LogCostDisplay } from '../log-cost-display'
 import { ModelBadge } from '../model-badge'
+import { RefusalBadge } from '../refusal-badge'
 import { TimingMetricsCell, StreamTpsCell } from '../timing-metrics-cell'
 import { useUsageLogsContext } from '../usage-logs-provider'
 
@@ -360,13 +361,18 @@ export function useCommonLogsColumns(
               <span className='truncate font-mono text-xs tabular-nums'>
                 {formatTimestampToDate(timestamp)}
               </span>
-              <StatusBadge
-                label={t(config.label)}
-                variant={config.color as StatusBadgeProps['variant']}
-                size='sm'
-                copyable={false}
-                className='-ml-1.5 !text-xs [&_span]:!text-xs'
-              />
+              <div className='flex flex-wrap items-center gap-1'>
+                <StatusBadge
+                  label={t(config.label)}
+                  variant={config.color as StatusBadgeProps['variant']}
+                  size='sm'
+                  copyable={false}
+                  className='-ml-1.5 !text-xs [&_span]:!text-xs'
+                />
+                {isAdmin && (
+                  <RefusalBadge isAdmin other={parseLogOther(log.other)} />
+                )}
+              </div>
             </div>
           )
         },

@@ -147,6 +147,7 @@ export interface LogOtherData {
     }
     // Reject / intercept reason (admin only)
     reject_reason?: string
+    refusal_category?: string
     task_plugin?: TaskPluginInfo
   }
   root_info?: {

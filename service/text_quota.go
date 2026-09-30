@@ -488,6 +488,9 @@ func PostTextConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, us
 	appendUsageBillingPathForLog(other, common.GetContextKeyBool(ctx, constant.ContextKeyLocalCountTokens), originUsage)
 	if adminRejectReason != "" {
 		other.SetAdmin("reject_reason", adminRejectReason)
+		if category := common.GetContextKeyString(ctx, constant.ContextKeyAdminRefusalCategory); category != "" {
+			other.SetAdmin("refusal_category", category)
+		}
 	}
 	if summary.ImageTokens != 0 {
 		other.SetPublic("image", true)

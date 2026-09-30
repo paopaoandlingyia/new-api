@@ -848,6 +848,13 @@ export function DetailsDialog(props: DetailsDialogProps) {
             variant='danger'
           >
             <p className='text-xs wrap-break-word'>{adminInfo.reject_reason}</p>
+            {adminInfo.refusal_category && (
+              <DetailRow
+                label={t('Refusal Category')}
+                value={adminInfo.refusal_category}
+                mono
+              />
+            )}
           </DetailSection>
         )}
 

@@ -17,14 +17,31 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { render, screen } from '@testing-library/react'
+import {
+  flexRender,
+  getCoreRowModel,
+  useReactTable,
+} from '@tanstack/react-table'
+import { act, render, screen } from '@testing-library/react'
+import { createInstance } from 'i18next'
+import { I18nextProvider } from 'react-i18next'
 import { afterEach, describe, expect, test } from 'vitest'
+
+import en from '@/i18n/locales/en.json'
+import zh from '@/i18n/locales/zh.json'
+import { ROLE } from '@/lib/roles'
+import { useAuthStore } from '@/stores/auth-store'
 
 import type { UsageLog } from '../../data/schema'
 import type { LogOtherData } from '../../types'
+import { useCommonLogsColumns } from '../columns/common-logs-columns'
+import { CommonLogMobileCard } from '../common-log-mobile-card'
 import { DetailsDialog } from '../dialogs/details-dialog'
+import { RefusalBadge } from '../refusal-badge'
+import { UsageLogsProvider } from '../usage-logs-provider'
 
 const queryClients: QueryClient[] = []
+const previousUser = useAuthStore.getState().auth.user
 
 function makeLog(other: LogOtherData): UsageLog {
   return {
@@ -53,7 +70,7 @@ function makeLog(other: LogOtherData): UsageLog {
   }
 }
 
-function renderDetails(isAdmin: boolean): void {
+function renderDetails(isAdmin: boolean, category?: string): void {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false } },
   })
@@ -67,6 +84,7 @@ function renderDetails(isAdmin: boolean): void {
         log={makeLog({
           admin_info: {
             reject_reason: 'blocked by channel policy',
+            refusal_category: category,
           },
         })}
         isAdmin={isAdmin}
@@ -78,11 +96,125 @@ function renderDetails(isAdmin: boolean): void {
   )
 }
 
+function LogPreview(props: {
+  log: UsageLog
+  isAdmin: boolean
+  mobile: boolean
+}) {
+  const table = useReactTable({
+    data: [props.log],
+    columns: useCommonLogsColumns(props.isAdmin, false),
+    getCoreRowModel: getCoreRowModel(),
+  })
+  const cells = table.getRowModel().rows[0].getAllCells()
+  if (props.mobile) {
+    return (
+      <CommonLogMobileCard
+        log={props.log}
+        cells={new Map(cells.map((cell) => [cell.column.id, cell]))}
+      />
+    )
+  }
+  const timeCell = cells.find((cell) => cell.column.id === 'created_at')
+  if (!timeCell) throw new Error('The log preview must have a time column')
+  return (
+    <>{flexRender(timeCell.column.columnDef.cell, timeCell.getContext())}</>
+  )
+}
+
+function renderPreview(
+  mobile: boolean,
+  isAdmin: boolean,
+  reason?: string,
+  category?: string
+) {
+  useAuthStore.getState().auth.setUser({
+    id: 1,
+    username: 'user',
+    role: isAdmin ? ROLE.ADMIN : ROLE.USER,
+  })
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  })
+  queryClients.push(queryClient)
+  const log = {
+    ...makeLog({
+      admin_info: { reject_reason: reason, refusal_category: category },
+    }),
+    type: 2,
+    content: '',
+  }
+  render(
+    <QueryClientProvider client={queryClient}>
+      <UsageLogsProvider>
+        <LogPreview log={log} mobile={mobile} isAdmin={isAdmin} />
+      </UsageLogsProvider>
+    </QueryClientProvider>
+  )
+}
+
 afterEach(() => {
   for (const queryClient of queryClients) {
     queryClient.clear()
   }
   queryClients.length = 0
+  useAuthStore.getState().auth.setUser(previousUser)
+})
+
+describe.each([
+  { surface: 'desktop', mobile: false },
+  { surface: 'mobile', mobile: true },
+])('$surface refusal marker', ({ mobile }) => {
+  test('shows a refusal beside the consume label without opening details', () => {
+    renderPreview(mobile, true, 'claude_stop_reason=refusal')
+    expect(screen.getByText('Refused')).toBeVisible()
+    expect(screen.getByText('Consume')).toBeVisible()
+    expect(screen.queryByRole('dialog')).toBeNull()
+  })
+
+  test('hides the refusal marker from non-admin users even if metadata is present', () => {
+    renderPreview(mobile, false, 'claude_stop_reason=refusal', 'cyber')
+    expect(screen.queryByText('Refused')).toBeNull()
+    expect(screen.queryByText(/cyber/)).toBeNull()
+  })
+
+  test.each(['cyber', 'future_category'])(
+    'shows the recorded %s category in the list',
+    (category) => {
+      renderPreview(mobile, true, 'claude_stop_reason=refusal', category)
+      expect(screen.getByText(`Refused · ${category}`)).toBeVisible()
+    }
+  )
+
+  test.each([undefined, 'blocked by channel policy'])(
+    'does not mark a log with reason %s as a Claude refusal',
+    (reason) => {
+      renderPreview(mobile, true, reason, 'cyber')
+      expect(screen.queryByText(/Refused/)).toBeNull()
+      expect(screen.queryByText(/cyber/)).toBeNull()
+    }
+  )
+})
+
+test('updates the refusal label when switching languages while retaining the provider category', async () => {
+  const i18n = createInstance()
+  await i18n.init({ lng: 'en', fallbackLng: 'en', resources: { en, zh } })
+  render(
+    <I18nextProvider i18n={i18n}>
+      <RefusalBadge
+        isAdmin
+        other={{
+          admin_info: {
+            reject_reason: 'claude_stop_reason=refusal',
+            refusal_category: 'cyber',
+          },
+        }}
+      />
+    </I18nextProvider>
+  )
+  expect(screen.getByText('Refused · cyber')).toBeVisible()
+  await act(() => i18n.changeLanguage('zh'))
+  expect(screen.getByText('拒绝 · cyber')).toBeVisible()
 })
 
 describe('usage log reject reason', () => {
@@ -94,9 +226,16 @@ describe('usage log reject reason', () => {
   })
 
   test('hides the nested admin reject reason from non-admin users', () => {
-    renderDetails(false)
+    renderDetails(false, 'cyber')
 
     expect(screen.queryByText('Reject Reason')).toBeNull()
     expect(screen.queryByText('blocked by channel policy')).toBeNull()
+    expect(screen.queryByText('cyber')).toBeNull()
+  })
+
+  test('shows the recorded refusal category in the admin details', () => {
+    renderDetails(true, 'cyber')
+    expect(screen.getByText('Refusal Category')).toBeVisible()
+    expect(screen.getByText('cyber')).toBeVisible()
   })
 })
