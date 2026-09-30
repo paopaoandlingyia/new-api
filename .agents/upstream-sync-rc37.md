@@ -66,7 +66,9 @@ TEST_MYSQL_DSN='<isolated mysql DSN>' TEST_POSTGRES_DSN='<isolated postgres DSN>
   -test.run='Test(MigrationSchemaStability|RequestPolicyDatabaseMatrix|MigrateTokenKeyUniqueness|MigratePrefillGroupUniqueness|UserSessionPreviousRefreshHashMigration)'
 ```
 
-隔离验证使用合成数据和既有镜像中的旧二进制，无生产数据库副本或真实凭据。一处脚本生命周期问题已定位：HTTP 监听先于上游退出信号注册约 100ms，验证脚本改为同时等待 `/api/status` 成功和启动完成日志，不修改应用实现。一次性脚本、二进制和测试容器在完成后清理，不作为日常部署依赖。ClickHouse 未做真实实例验证，本次其驱动和既有本站日志扩展没有变更。
+隔离验证使用合成数据和既有镜像中的旧二进制，无生产数据库副本或真实凭据。一处脚本生命周期问题已定位：HTTP 监听先于上游退出信号注册约 100ms，验证脚本改为同时等待 `/api/status` 成功和启动完成日志，不修改应用实现。服务器测试容器、网络及验证目录已清理，本机临时 Git 工作树已归档并删除。这些一次性工具不作为日常部署依赖。ClickHouse 未做真实实例验证，本次其驱动和既有本站日志扩展没有变更。
+
+本机临时工作树旁的构建、验证文件仍在 `F:/Relocated/Users/Administrator/.codex/worktrees/rc41-integration/`，另有 `F:/github-fork-pr/main-rc41-build.log`；删除操作被自动审批拒绝（`blocked by policy`），未绕过限制。这些文件不在仓库中、不参与发布，可后续手动清理。
 
 全仓库 lint 仍有既有错误（本次检查 181 个，涉及的 100 个文件均与 rc.41 上游完全一致）；格式检查也发现上游文件的既有差异。冲突处理中修改的前端文件通过定向 lint，未扩大范围处理其他文件。没有进行物理 Passkey 或第三方 SSO 实际账号验证。认证参考 [OWASP Authentication](https://cheatsheetseries.owasp.org/cheatsheets/Authentication_Cheat_Sheet.html)、[Session Management](https://cheatsheetseries.owasp.org/cheatsheets/Session_Management_Cheat_Sheet.html) 和 [ASVS 5.0](https://owasp.org/www-project-application-security-verification-standard/)；使用上游认证回归测试验证权限、过期、重放及敏感操作，不宣称全站 ASVS 合规。
 
