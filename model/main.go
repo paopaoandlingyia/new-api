@@ -398,23 +398,6 @@ func migrateDB() error {
 			return err
 		}
 	}
-	return ensureUnmanagedColumns()
-}
-
-type customOAuthProviderEnabledColumn struct {
-	Enabled bool `gorm:"column:enabled"`
-}
-
-func (customOAuthProviderEnabledColumn) TableName() string {
-	return "custom_oauth_providers"
-}
-
-func ensureUnmanagedColumns() error {
-	if DB.Migrator().HasTable(&CustomOAuthProvider{}) && !DB.Migrator().HasColumn(&CustomOAuthProvider{}, "enabled") {
-		if err := DB.Migrator().AddColumn(&customOAuthProviderEnabledColumn{}, "Enabled"); err != nil {
-			return err
-		}
-	}
 	return nil
 }
 

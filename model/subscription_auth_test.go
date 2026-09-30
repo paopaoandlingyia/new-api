@@ -94,7 +94,6 @@ func TestSubscriptionGroupCacheRefreshFailureDoesNotChangeCommittedResult(t *tes
 	require.NoError(t, err)
 	DB, LOG_DB = db, db
 	require.NoError(t, db.AutoMigrate(&User{}, &SubscriptionPlan{}, &UserSubscription{}))
-	require.NoError(t, ensureUnmanagedColumns())
 	sqlDB, err := db.DB()
 	require.NoError(t, err)
 	sqlDB.SetMaxOpenConns(4)

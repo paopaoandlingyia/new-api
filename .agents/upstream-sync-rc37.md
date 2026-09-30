@@ -33,7 +33,7 @@
 - 不整合分组并发分支；本站自定义并发规则不进入新 `main`。
 - Claude 单次请求 effort 修复直接采用上游代码，移除重复修复及旧测试。统计归因也采用上游新的拒绝、流式失败和客户端取消处理。
 - 保留独立 Claude `count_tokens`、模型状态页及来源管理、管理员上游账号日志、条件错误日志、统计隐私处理、HTML no-store、版本与构建号展示、1Panel 部署配置及个人镜像工作流。既有管理员定价配置不改写。
-- 上游新增认证、请求策略、任务插件等功能随发布版整体同步，不另行重构。旧的 Custom OAuth 布尔字段迁移修复继续保留。
+- 上游新增认证、请求策略、任务插件等功能随发布版整体同步，不另行重构。旧的 Custom OAuth 布尔字段迁移补丁经三数据库验证后移除，恢复上游迁移行为。
 
 用户随后确认移除自定义参数条件 `exists` 及 `**.` 递归路径，后端和参数编辑器恢复为 rc.41 上游实现。缓存规则使用原生通配符统一已有 TTL 为 `1h`，再用 `@dig:cache_control|#` / `lt` / `4` 条件在有空余名额时补充顶层一小时自动缓存；递归计数也会统计非协议位置的同名字段。原来使用 `exists` 的渠道规则须在部署新代码前替换，未自动修改生产配置。后端 `go test ./relay/common`、前端类型检查、定向 lint/格式检查通过；完整规则的无标记、一/三/四个显式标记、顶层加三个显式标记共五类输入验证通过，未调用上游验证真实缓存命中。当前 shell 无 Bun，前端检查使用现有 npm 脚本和本地工具，未改依赖。
 
@@ -96,6 +96,8 @@ bash validate-container.sh
 ```
 
 首轮 MySQL/PostgreSQL 因内部网络的宿主端口不可达而未执行迁移；将测试程序和数据检查程序放入同一内部网络后完成验证，未修改应用实现。结论：当前这项 OAuth 历史迁移规避措施可以撤除。验证依据为当前生产表结构和合成样本，不是完整生产数据库副本。
+
+用户随后确认移除补丁。正式 `main` 恢复 `CustomOAuthProvider.Enabled` 的上游默认禁用标签，删除 `ensureUnmanagedColumns`、专用测试及测试夹具中的调用；保留上游账号日志的 ClickHouse 迁移。修改后的两份生产源码与上述已验证候选源码核对一致（统一换行符后逐字相同），两份测试夹具文件与 rc.41 一致。`GOWORK=off go build ./...` 和 `go test ./model -run 'TestMigrationSchemaStability/sqlite|TestSubscriptionGroupTransitionsPreserveAuthVersionAndSessions|TestSubscriptionGroupCacheRefreshFailureDoesNotChangeCommittedResult' -count=1 -timeout=120s` 通过；仅提交代码，未部署或触发生产迁移。
 
 生产容器仍为 `sha-0575582b`、healthy，启动时间 `2026-09-16T02:03:02.53813048Z`、重启次数 0；验证结束后生产字段仍为默认 NULL，表仍无记录。服务器临时应用、数据库容器、网络和目录均已清理。日志、无数据的表结构和小型验证源码保留在 `F:/Relocated/Users/Administrator/.codex/tmp/new-api-oauth-validation-20261001/`，不作为部署工具。本机隔离源码、二进制及上传分块仍在 `F:/DevCache/temp/newapi-oauth-validation-57b423ec8d3849b9b13ef3d9b70afdc2/`：已核对绝对路径的 PowerShell 递归清理被自动审批拒绝（`blocked by policy`），未绕过限制。
 
