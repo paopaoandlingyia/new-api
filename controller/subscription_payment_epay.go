@@ -41,9 +41,6 @@ func SubscriptionRequestEpay(c *gin.Context) {
 		common.ApiErrorMsg(c, "套餐未启用")
 		return
 	}
-	if rejectBalanceOnlySubscription(c, plan) {
-		return
-	}
 	if plan.PriceAmount < 0.01 {
 		common.ApiErrorMsg(c, "套餐金额过低")
 		return
@@ -64,10 +61,6 @@ func SubscriptionRequestEpay(c *gin.Context) {
 			common.ApiErrorMsg(c, "已达到该套餐购买上限")
 			return
 		}
-	}
-	if err := model.CheckSubscriptionActiveLimit(userId, plan); err != nil {
-		common.ApiError(c, err)
-		return
 	}
 
 	callBackAddress := service.GetCallbackAddress()

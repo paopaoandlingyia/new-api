@@ -150,18 +150,17 @@ type SubscriptionPlan struct {
 	Subtitle string `json:"subtitle" gorm:"type:varchar(255);default:''"`
 
 	// Display money amount (follow existing code style: float64 for money)
-	PriceAmount float64 `json:"price_amount" gorm:"-:migration"`
+	PriceAmount float64 `json:"price_amount" gorm:"type:decimal(10,6);not null;default:0"`
 	Currency    string  `json:"currency" gorm:"type:varchar(8);not null;default:'USD'"`
 
 	DurationUnit  string `json:"duration_unit" gorm:"type:varchar(16);not null;default:'month'"`
 	DurationValue int    `json:"duration_value" gorm:"type:int;not null;default:1"`
 	CustomSeconds int64  `json:"custom_seconds" gorm:"type:bigint;not null;default:0"`
 
-	Enabled   bool `json:"enabled" gorm:"-:migration"`
+	Enabled   bool `json:"enabled" gorm:"default:true"`
 	SortOrder int  `json:"sort_order" gorm:"type:int;default:0"`
 
 	AllowBalancePay *bool `json:"allow_balance_pay"`
-	BalanceOnly     bool  `json:"balance_only" gorm:"type:boolean"`
 
 	// Allow falling back to wallet balance after subscription quota is exhausted (empty = true)
 	AllowWalletOverflow *bool `json:"allow_wallet_overflow"`
@@ -172,9 +171,6 @@ type SubscriptionPlan struct {
 
 	// Max purchases per user (0 = unlimited)
 	MaxPurchasePerUser int `json:"max_purchase_per_user" gorm:"type:int;default:0"`
-
-	// Max concurrently active subscriptions per user for this plan (0 = unlimited)
-	MaxActivePerUser int `json:"max_active_per_user" gorm:"type:int;default:0"`
 
 	// Upgrade user group after purchase (empty = no change)
 	UpgradeGroup string `json:"upgrade_group" gorm:"type:varchar(64);default:''"`
@@ -494,9 +490,6 @@ func CreateUserSubscriptionFromPlanTx(tx *gorm.DB, userId int, plan *Subscriptio
 	}
 	if userId <= 0 {
 		return nil, errors.New("invalid user id")
-	}
-	if err := EnforceSubscriptionActiveLimitTx(tx, userId, plan); err != nil {
-		return nil, err
 	}
 	if plan.MaxPurchasePerUser > 0 {
 		var count int64

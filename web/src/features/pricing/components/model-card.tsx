@@ -45,7 +45,7 @@ import { ModelBillingModeBadge } from './model-billing-mode-badge'
 
 export interface ModelCardProps {
   model: PricingModel
-  onClick: () => void
+  onClick: (modelName: string) => void
   priceRate?: number
   usdExchangeRate?: number
   tokenUnit?: TokenUnit
@@ -380,7 +380,11 @@ export const ModelCard = memo(function ModelCard(props: ModelCardProps) {
         )}
       </CardContent>
       <CardFooter className='mt-auto border-0 bg-transparent pt-0'>
-        <Button variant='ghost' size='sm' onClick={props.onClick}>
+        <Button
+          variant='ghost'
+          size='sm'
+          onClick={() => props.onClick(props.model.model_name || '')}
+        >
           {t('Details')}
           <ChevronRight aria-hidden className='size-3.5' />
         </Button>

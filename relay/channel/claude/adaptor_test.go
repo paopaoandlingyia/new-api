@@ -74,33 +74,33 @@ func TestConvertClaudeRequestPreservesNativeClaudeCodeThinking(t *testing.T) {
 	assert.Empty(t, info.ConversionDiagnostics())
 }
 
-func TestConvertClaudeRequestPreservesPerMessageEffort(t *testing.T) {
-	const body = `{"model":"claude-opus-5","max_tokens":4096,"messages":[{"role":"user","content":"Plan a migration"},{"role":"system","content":[],"output_config":{"effort":"high"}},{"role":"user","content":"Summarize it"}]}`
-	var request dto.ClaudeRequest
-	require.NoError(t, common.Unmarshal([]byte(body), &request))
-
-	copied, err := common.DeepCopy(&request)
-	require.NoError(t, err)
+func TestConvertClaudeRequestPreservesMessageOutputConfig(t *testing.T) {
+	body := `{"model":"claude-opus-5-5","max_tokens":64,"output_config":{"effort":"medium"},"messages":[` +
+		`{"role":"user","content":"summary"},` +
+		`{"role":"system","content":[],"output_config":{"effort":"high"}},` +
+		`{"role":"assistant","content":"done"}]}`
+	var req dto.ClaudeRequest
+	require.NoError(t, common.UnmarshalJsonStr(body, &req))
 	info := &relaycommon.RelayInfo{
-		ChannelMeta: &relaycommon.ChannelMeta{UpstreamModelName: request.Model},
+		OriginModelName: req.Model,
+		ChannelMeta: &relaycommon.ChannelMeta{
+			UpstreamModelName: req.Model,
+		},
 	}
-	converted, err := (&Adaptor{}).ConvertClaudeRequest(nil, info, copied)
+
+	out, err := (&Adaptor{}).ConvertClaudeRequest(nil, info, &req)
 	require.NoError(t, err)
-	outbound, err := common.Marshal(converted)
+	encoded, err := common.Marshal(out)
 	require.NoError(t, err)
 
-	var parsed struct {
-		Messages []struct {
-			Role         string         `json:"role"`
-			Content      any            `json:"content"`
-			OutputConfig map[string]any `json:"output_config"`
-		} `json:"messages"`
+	var upstream struct {
+		Messages []map[string]any `json:"messages"`
 	}
-	require.NoError(t, common.Unmarshal(outbound, &parsed))
-	require.Len(t, parsed.Messages, 3)
-	assert.Equal(t, "system", parsed.Messages[1].Role)
-	assert.Equal(t, []any{}, parsed.Messages[1].Content)
-	assert.Equal(t, "high", parsed.Messages[1].OutputConfig["effort"])
+	require.NoError(t, common.Unmarshal(encoded, &upstream))
+	require.Len(t, upstream.Messages, 3)
+	assert.Equal(t, map[string]any{"effort": "high"}, upstream.Messages[1]["output_config"])
+	assert.NotContains(t, upstream.Messages[0], "output_config")
+	assert.NotContains(t, upstream.Messages[2], "output_config")
 }
 
 func TestConvertClaudeRequestZeroMaxTokensStillRaisesThinkingBudget(t *testing.T) {

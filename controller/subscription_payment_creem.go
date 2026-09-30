@@ -50,9 +50,6 @@ func SubscriptionRequestCreemPay(c *gin.Context) {
 		common.ApiErrorMsg(c, "套餐未启用")
 		return
 	}
-	if rejectBalanceOnlySubscription(c, plan) {
-		return
-	}
 	if plan.CreemProductId == "" {
 		common.ApiErrorMsg(c, "该套餐未配置 CreemProductId")
 		return
@@ -83,10 +80,6 @@ func SubscriptionRequestCreemPay(c *gin.Context) {
 			common.ApiErrorMsg(c, "已达到该套餐购买上限")
 			return
 		}
-	}
-	if err := model.CheckSubscriptionActiveLimit(userId, plan); err != nil {
-		common.ApiError(c, err)
-		return
 	}
 
 	reference := "sub-creem-ref-" + randstr.String(6)

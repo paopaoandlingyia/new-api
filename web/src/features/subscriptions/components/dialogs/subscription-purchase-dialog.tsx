@@ -79,15 +79,12 @@ export function SubscriptionPurchaseDialog(props: Props) {
   const plan = props.plan?.plan
   if (!plan) return null
 
-  const balanceOnly = plan.balance_only === true
-  const hasStripe = !balanceOnly && props.enableStripe && !!plan.stripe_price_id
-  const hasCreem = !balanceOnly && props.enableCreem && !!plan.creem_product_id
+  const hasStripe = props.enableStripe && !!plan.stripe_price_id
+  const hasCreem = props.enableCreem && !!plan.creem_product_id
   const hasWaffoPancake =
-    !balanceOnly && props.enableWaffoPancake && !!plan.waffo_pancake_product_id
+    props.enableWaffoPancake && !!plan.waffo_pancake_product_id
   const hasEpay =
-    !balanceOnly &&
-    props.enableOnlineTopUp &&
-    (props.epayMethods || []).length > 0
+    props.enableOnlineTopUp && (props.epayMethods || []).length > 0
   const hasAnyPayment = hasStripe || hasCreem || hasWaffoPancake || hasEpay
   const totalAmount = Number(plan.total_amount || 0)
   const price = Number(plan.price_amount || 0).toFixed(2)

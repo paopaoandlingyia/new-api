@@ -487,34 +487,6 @@ export function SubscriptionsMutateDrawer({
                     </FormItem>
                   )}
                 />
-
-                <FormField
-                  control={form.control}
-                  name='max_active_per_user'
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>{t('Concurrent Active Limit')}</FormLabel>
-                      <FormControl>
-                        <Input
-                          {...field}
-                          type='number'
-                          min={0}
-                          onChange={(e) =>
-                            field.onChange(
-                              Number.parseInt(e.target.value, 10) || 0
-                            )
-                          }
-                        />
-                      </FormControl>
-                      <FormDescription>
-                        {t(
-                          '0 means unlimited; set to 1 so the user must wait for the current subscription to expire before buying this plan again'
-                        )}
-                      </FormDescription>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
               </div>
 
               <FormField
@@ -566,31 +538,6 @@ export function SubscriptionsMutateDrawer({
                       <FormLabel className='!mt-0'>
                         {t('Allow balance redemption')}
                       </FormLabel>
-                      <FormControl>
-                        <Switch
-                          checked={field.value}
-                          onCheckedChange={field.onChange}
-                        />
-                      </FormControl>
-                    </FormItem>
-                  )}
-                />
-
-                <FormField
-                  control={form.control}
-                  name='balance_only'
-                  render={({ field }) => (
-                    <FormItem className={sideDrawerSwitchItemClassName()}>
-                      <div>
-                        <FormLabel className='!mt-0'>
-                          {t('Balance-only purchase')}
-                        </FormLabel>
-                        <FormDescription>
-                          {t(
-                            'Only wallet balance can be used to purchase this plan'
-                          )}
-                        </FormDescription>
-                      </div>
                       <FormControl>
                         <Switch
                           checked={field.value}

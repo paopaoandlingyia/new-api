@@ -213,6 +213,11 @@ func InitDB() (err error) {
 		sqlDB.SetConnMaxLifetime(time.Second * time.Duration(common.GetEnvOrDefault("SQL_MAX_LIFETIME", 60)))
 
 		if !common.IsMasterNode {
+			// Only the master node migrates. A node that cannot read the deadline
+			// keeps rejecting legacy access tokens instead of refusing to start.
+			if err := EnsureLegacyAccessTokenRetireAt(common.GetTimestamp()); err != nil {
+				common.SysError("initialize legacy access token deadline: " + err.Error())
+			}
 			return nil
 		}
 		if common.UsingMainDatabase(common.DatabaseTypeMySQL) {
@@ -370,12 +375,16 @@ func migrateDB() error {
 		&SystemTaskLock{},
 		&CasbinRule{},
 		&AuthzRole{},
+		&UserAccessToken{},
 	)
 	if err != nil {
 		return err
 	}
 	if err := InitializeUserAuthVersions(); err != nil {
 		return err
+	}
+	if err := EnsureLegacyAccessTokenRetireAt(common.GetTimestamp()); err != nil {
+		return fmt.Errorf("initialize legacy access token deadline: %w", err)
 	}
 	if err := InitializeExternalIdentityClaims(); err != nil {
 		return err
@@ -400,35 +409,9 @@ func (customOAuthProviderEnabledColumn) TableName() string {
 	return "custom_oauth_providers"
 }
 
-type subscriptionPlanEnabledColumn struct {
-	Enabled bool `gorm:"column:enabled"`
-}
-
-func (subscriptionPlanEnabledColumn) TableName() string {
-	return "subscription_plans"
-}
-
-type subscriptionPlanPriceAmountColumn struct {
-	PriceAmount float64 `gorm:"column:price_amount;type:decimal(10,6);not null;default:0"`
-}
-
-func (subscriptionPlanPriceAmountColumn) TableName() string {
-	return "subscription_plans"
-}
-
 func ensureUnmanagedColumns() error {
 	if DB.Migrator().HasTable(&CustomOAuthProvider{}) && !DB.Migrator().HasColumn(&CustomOAuthProvider{}, "enabled") {
 		if err := DB.Migrator().AddColumn(&customOAuthProviderEnabledColumn{}, "Enabled"); err != nil {
-			return err
-		}
-	}
-	if DB.Migrator().HasTable(&SubscriptionPlan{}) && !DB.Migrator().HasColumn(&SubscriptionPlan{}, "enabled") {
-		if err := DB.Migrator().AddColumn(&subscriptionPlanEnabledColumn{}, "Enabled"); err != nil {
-			return err
-		}
-	}
-	if DB.Migrator().HasTable(&SubscriptionPlan{}) && !DB.Migrator().HasColumn(&SubscriptionPlan{}, "price_amount") {
-		if err := DB.Migrator().AddColumn(&subscriptionPlanPriceAmountColumn{}, "PriceAmount"); err != nil {
 			return err
 		}
 	}
@@ -561,13 +544,11 @@ func ensureSubscriptionPlanTableSQLite() error {
 ` + "`enabled`" + ` numeric DEFAULT 1,
 ` + "`sort_order`" + ` integer DEFAULT 0,
 ` + "`allow_balance_pay`" + ` numeric DEFAULT 1,
-` + "`balance_only`" + ` numeric DEFAULT 0,
 ` + "`allow_wallet_overflow`" + ` numeric DEFAULT 1,
 ` + "`stripe_price_id`" + ` varchar(128) DEFAULT '',
 ` + "`creem_product_id`" + ` varchar(128) DEFAULT '',
 ` + "`waffo_pancake_product_id`" + ` varchar(128) DEFAULT '',
 ` + "`max_purchase_per_user`" + ` integer DEFAULT 0,
-` + "`max_active_per_user`" + ` integer DEFAULT 0,
 ` + "`upgrade_group`" + ` varchar(64) DEFAULT '',
 ` + "`downgrade_group`" + ` varchar(64) DEFAULT '',
 ` + "`total_amount`" + ` bigint NOT NULL DEFAULT 0,
@@ -600,13 +581,11 @@ PRIMARY KEY (` + "`id`" + `)
 		{Name: "enabled", DDL: "`enabled` numeric DEFAULT 1"},
 		{Name: "sort_order", DDL: "`sort_order` integer DEFAULT 0"},
 		{Name: "allow_balance_pay", DDL: "`allow_balance_pay` numeric DEFAULT 1"},
-		{Name: "balance_only", DDL: "`balance_only` numeric DEFAULT 0"},
 		{Name: "allow_wallet_overflow", DDL: "`allow_wallet_overflow` numeric DEFAULT 1"},
 		{Name: "stripe_price_id", DDL: "`stripe_price_id` varchar(128) DEFAULT ''"},
 		{Name: "creem_product_id", DDL: "`creem_product_id` varchar(128) DEFAULT ''"},
 		{Name: "waffo_pancake_product_id", DDL: "`waffo_pancake_product_id` varchar(128) DEFAULT ''"},
 		{Name: "max_purchase_per_user", DDL: "`max_purchase_per_user` integer DEFAULT 0"},
-		{Name: "max_active_per_user", DDL: "`max_active_per_user` integer DEFAULT 0"},
 		{Name: "upgrade_group", DDL: "`upgrade_group` varchar(64) DEFAULT ''"},
 		{Name: "downgrade_group", DDL: "`downgrade_group` varchar(64) DEFAULT ''"},
 		{Name: "total_amount", DDL: "`total_amount` bigint NOT NULL DEFAULT 0"},

@@ -28,14 +28,10 @@ func TestEnsureUnmanagedColumnsAddsMissingColumns(t *testing.T) {
 		}
 	})
 
-	require.NoError(t, db.AutoMigrate(&CustomOAuthProvider{}, &SubscriptionPlan{}))
+	require.NoError(t, db.AutoMigrate(&CustomOAuthProvider{}))
 	require.False(t, db.Migrator().HasColumn(&CustomOAuthProvider{}, "enabled"))
-	require.False(t, db.Migrator().HasColumn(&SubscriptionPlan{}, "enabled"))
-	require.False(t, db.Migrator().HasColumn(&SubscriptionPlan{}, "price_amount"))
 
 	require.NoError(t, ensureUnmanagedColumns())
 	require.True(t, db.Migrator().HasColumn(&CustomOAuthProvider{}, "enabled"))
-	require.True(t, db.Migrator().HasColumn(&SubscriptionPlan{}, "enabled"))
-	require.True(t, db.Migrator().HasColumn(&SubscriptionPlan{}, "price_amount"))
 	require.NoError(t, ensureUnmanagedColumns())
 }

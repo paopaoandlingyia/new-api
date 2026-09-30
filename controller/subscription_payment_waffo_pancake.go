@@ -40,9 +40,6 @@ func SubscriptionRequestWaffoPancakePay(c *gin.Context) {
 		common.ApiErrorMsg(c, "套餐未启用")
 		return
 	}
-	if rejectBalanceOnlySubscription(c, plan) {
-		return
-	}
 	if strings.TrimSpace(plan.WaffoPancakeProductId) == "" {
 		common.ApiErrorMsg(c, "该套餐未配置 WaffoPancakeProductId")
 		return
@@ -76,10 +73,6 @@ func SubscriptionRequestWaffoPancakePay(c *gin.Context) {
 			common.ApiErrorMsg(c, "已达到该套餐购买上限")
 			return
 		}
-	}
-	if err := model.CheckSubscriptionActiveLimit(userId, plan); err != nil {
-		common.ApiError(c, err)
-		return
 	}
 
 	// WAFFO_PANCAKE_SUB- prefix (vs. wallet's WAFFO_PANCAKE-) drives webhook
