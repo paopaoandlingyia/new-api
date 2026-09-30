@@ -76,6 +76,29 @@ TEST_MYSQL_DSN='<isolated mysql DSN>' TEST_POSTGRES_DSN='<isolated postgres DSN>
 
 整合前 `main`、生产并发版、旧 Claude effort 和 count_tokens 分支提交通过 `archive/2026-09-30/*` 标签保留，便于恢复源码。数据库升级后的生产回退必须结合当时的备份及账务变化评估，不能仅靠切换旧镜像或恢复旧库。
 
+## 2026-10-01 OAuth 历史迁移补丁验证
+
+用户说明兼容补丁源于 TiDB 迁出，并授权验证是否可以恢复上游；本轮仅验证，没有删除正式代码中的补丁或部署。候选版本基于 `2b7cc0ab0` 的隔离源码副本，将 `CustomOAuthProvider.Enabled` 恢复为上游 `gorm:"default:false"`，移除 `ensureUnmanagedColumns` 及对应测试调用；主分支业务代码保持原状。
+
+只读确认生产主库为 MySQL **8.0.46** / `new_api`，OAuth 表无记录，`enabled` 为 `tinyint(1)`、允许 NULL、默认 NULL。仅复制该表的 CREATE TABLE，使用合成数据，不复制真实凭据或生产业务数据。生产结构复现的首次迁移只执行 `ALTER TABLE custom_oauth_providers MODIFY COLUMN enabled boolean DEFAULT false`；后续两次迁移均无 DDL。启用、禁用、SQL NULL 状态、启用筛选、默认禁用和 slug 唯一约束均保留。
+
+真实 SQLite **3.50.4**、MySQL **8.0.46**、PostgreSQL **18.4** 上的定向测试通过：每种引擎覆盖新建、旧无默认值字段、缺失字段，并额外覆盖生产 MySQL 表结构，共十个场景；同时运行上游结构、索引、约束与小数默认值回归。候选应用分别验证三个引擎的新建、生产 rc.37 镜像二进制升级、校验和通过的官方 rc.41 二进制升级，共九个完整场景；候选版本每个场景启动两次。用户和令牌额度、订阅额度、禁用套餐、六位小数价格、日志、配置、OAuth 三种状态和唯一性保留，两次候选启动后的列与索引快照一致。MySQL/PostgreSQL 使用独立日志库。
+
+```sh
+# 隔离源码副本构建，未修改正式分支源码
+GOOS=linux GOARCH=amd64 CGO_ENABLED=0 GOWORK=off go test -c -p 4 -ldflags '-s -w' -o oauth-migration.test ./model
+GOOS=linux GOARCH=amd64 CGO_ENABLED=0 GOWORK=off go build -p 4 -ldflags '-s -w' -o new-api-candidate .
+# 测试二进制在内部 Docker 网络运行，DSN 仅指向新建的独立数据库
+./oauth-migration.test -test.v -test.timeout=180s -test.run='Test(OAuthMigrationUpstream|MigrationSchemaStability)$'
+# 临时启动/数据/结构验证脚本；首轮 SQLite 完成后，其余引擎在同一内部网络续跑
+bash validate.sh
+bash validate-container.sh
+```
+
+首轮 MySQL/PostgreSQL 因内部网络的宿主端口不可达而未执行迁移；将测试程序和数据检查程序放入同一内部网络后完成验证，未修改应用实现。结论：当前这项 OAuth 历史迁移规避措施可以撤除。验证依据为当前生产表结构和合成样本，不是完整生产数据库副本。
+
+生产容器仍为 `sha-0575582b`、healthy，启动时间 `2026-09-16T02:03:02.53813048Z`、重启次数 0；验证结束后生产字段仍为默认 NULL，表仍无记录。服务器临时应用、数据库容器、网络和目录均已清理。日志、无数据的表结构和小型验证源码保留在 `F:/Relocated/Users/Administrator/.codex/tmp/new-api-oauth-validation-20261001/`，不作为部署工具。本机隔离源码、二进制及上传分块仍在 `F:/DevCache/temp/newapi-oauth-validation-57b423ec8d3849b9b13ef3d9b70afdc2/`：已核对绝对路径的 PowerShell 递归清理被自动审批拒绝（`blocked by policy`），未绕过限制。
+
 ## 2026-09-13 rc.37 同步
 
 从 rc.25 同步至 [v1.0.0-rc.37](https://github.com/QuantumNous/new-api/releases/tag/v1.0.0-rc.37)，包含 111 个上游提交。合并提交 `d7dafb786`，另采纳上游认证测试 QueryClient 修复，应用代码提交 `c11a171f2277b45a11723a6bf19864660c21abd2`。后续提交仅整理记录，不改变已验证应用逻辑。
