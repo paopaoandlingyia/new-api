@@ -30,6 +30,29 @@ func applyExplicitLogTextFilter(tx *gorm.DB, column string, value string) (*gorm
 	return tx.Where(column+" = ?", value), nil
 }
 
+func applyClaudeRefusalFilter(tx *gorm.DB, refusedOnly bool) (*gorm.DB, error) {
+	if !refusedOnly {
+		return tx, nil
+	}
+	// RecordLog and historical logs can leave other empty. NULLIF excludes
+	// those rows without parsing an empty document; malformed non-empty JSON
+	// still surfaces the database error on SQLite, MySQL and PostgreSQL.
+	var reason string
+	switch common.LogDatabaseType() {
+	case common.DatabaseTypeSQLite:
+		reason = "json_extract(NULLIF(logs.other, ''), '$.admin_info.reject_reason')"
+	case common.DatabaseTypeMySQL:
+		reason = "JSON_UNQUOTE(JSON_EXTRACT(NULLIF(logs.other, ''), '$.admin_info.reject_reason'))"
+	case common.DatabaseTypePostgreSQL:
+		reason = "NULLIF(logs.other, '')::json -> 'admin_info' ->> 'reject_reason'"
+	case common.DatabaseTypeClickHouse:
+		reason = "JSONExtractString(logs.other, 'admin_info', 'reject_reason')"
+	default:
+		return nil, fmt.Errorf("unsupported log database for refusal filter: %s", common.LogDatabaseType())
+	}
+	return tx.Where(reason+" = ?", "claude_stop_reason=refusal"), nil
+}
+
 func buildLogLikeCondition(column string, value string) (string, string, error) {
 	if common.UsingLogDatabase(common.DatabaseTypeClickHouse) {
 		pattern, err := sanitizeClickHouseLikePattern(value)
@@ -467,7 +490,7 @@ func RecordTaskBillingLog(params RecordTaskBillingLogParams) {
 	}
 }
 
-func GetAllLogs(logType int, startTimestamp int64, endTimestamp int64, modelName string, username string, tokenName string, startIdx int, num int, channel int, group string, requestId string, upstreamRequestId string, upstreamAccount string) (logs []*Log, total int64, err error) {
+func GetAllLogs(logType int, startTimestamp int64, endTimestamp int64, modelName string, username string, tokenName string, startIdx int, num int, channel int, group string, requestId string, upstreamRequestId string, upstreamAccount string, refusedOnly bool) (logs []*Log, total int64, err error) {
 	var tx *gorm.DB
 	if logType == LogTypeUnknown {
 		tx = LOG_DB
@@ -504,6 +527,9 @@ func GetAllLogs(logType int, startTimestamp int64, endTimestamp int64, modelName
 	}
 	if group != "" {
 		tx = tx.Where("logs."+logGroupCol+" = ?", group)
+	}
+	if tx, err = applyClaudeRefusalFilter(tx, refusedOnly); err != nil {
+		return nil, 0, err
 	}
 	err = tx.Model(&Log{}).Count(&total).Error
 	if err != nil {
@@ -620,7 +646,7 @@ type Stat struct {
 	Tpm   int `json:"tpm"`
 }
 
-func SumUsedQuota(logType int, startTimestamp int64, endTimestamp int64, modelName string, username string, tokenName string, channel int, group string, upstreamAccount string) (stat Stat, err error) {
+func SumUsedQuota(logType int, startTimestamp int64, endTimestamp int64, modelName string, username string, tokenName string, channel int, group string, upstreamAccount string, refusedOnly bool) (stat Stat, err error) {
 	tx := LOG_DB.Table("logs").Select("COALESCE(sum(quota), 0) quota")
 
 	// 为rpm和tpm创建单独的查询
@@ -659,6 +685,12 @@ func SumUsedQuota(logType int, startTimestamp int64, endTimestamp int64, modelNa
 	if upstreamAccount != "" {
 		tx = tx.Where("upstream_account = ?", upstreamAccount)
 		rpmTpmQuery = rpmTpmQuery.Where("upstream_account = ?", upstreamAccount)
+	}
+	if tx, err = applyClaudeRefusalFilter(tx, refusedOnly); err != nil {
+		return stat, err
+	}
+	if rpmTpmQuery, err = applyClaudeRefusalFilter(rpmTpmQuery, refusedOnly); err != nil {
+		return stat, err
 	}
 
 	tx = tx.Where("type = ?", LogTypeConsume)

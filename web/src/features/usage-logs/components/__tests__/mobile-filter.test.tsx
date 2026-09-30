@@ -40,6 +40,7 @@ import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import zhTW from '@/i18n/locales/zh-TW.json'
 import zh from '@/i18n/locales/zh.json'
 import { api } from '@/lib/api'
+import { useAuthStore } from '@/stores/auth-store'
 
 import { CommonLogsFilterBar } from '../common-logs-filter-bar'
 import { CompactDateTimeRangePicker } from '../compact-date-time-range-picker'
@@ -76,12 +77,13 @@ async function renderMobileFilter() {
     ...original(query),
     matches: query === '(max-width: 640px)',
   }))
-  vi.spyOn(api, 'get').mockImplementation(async (url) => ({
-    data: {
-      success: true,
-      data: url === '/api/user/self/groups' ? {} : { quota: 0, rpm: 0, tpm: 0 },
-    },
-  }))
+  vi.spyOn(api, 'get').mockImplementation(async (url) => {
+    if (url === '/api/group/') return { data: { success: true, data: [] } }
+    if (url === '/api/user/self/groups') {
+      return { data: { success: true, data: {} } }
+    }
+    return { data: { success: true, data: { quota: 0, rpm: 0, tpm: 0 } } }
+  })
   const root = createRootRoute()
   const auth = createRoute({ getParentRoute: () => root, id: '_authenticated' })
   const logs = createRoute({
@@ -121,7 +123,37 @@ afterEach(async () => {
   cleanup()
   vi.restoreAllMocks()
   vi.useRealTimers()
+  useAuthStore.getState().auth.setUser(null)
   await i18next.changeLanguage('en')
+})
+
+it('applies and resets the administrator refusal filter in the mobile drawer', async () => {
+  useAuthStore.getState().auth.setUser({ id: 1, username: 'admin', role: 10 })
+  const router = await renderMobileFilter()
+  const user = userEvent.setup()
+  await user.click(screen.getByRole('button', { name: 'Filter' }))
+  await user.click(screen.getByRole('combobox', { name: 'Refusal Status' }))
+  await user.click(screen.getByRole('option', { name: 'Only Refused' }))
+  await user.click(screen.getByRole('button', { name: 'Search' }))
+  await waitFor(() =>
+    expect(router.state.location.search).toMatchObject({
+      refusedOnly: true,
+      page: 1,
+      group: 'default',
+      type: ['2'],
+    })
+  )
+  expect(
+    screen.queryByRole('dialog', { name: 'Filter' })
+  ).not.toBeInTheDocument()
+  await user.click(screen.getByRole('button', { name: /^Filter/ }))
+  expect(
+    screen.getByRole('combobox', { name: 'Refusal Status' })
+  ).toHaveTextContent('Only Refused')
+  await user.click(screen.getByRole('button', { name: 'Reset' }))
+  await waitFor(() =>
+    expect(router.state.location.search).not.toHaveProperty('refusedOnly')
+  )
 })
 
 it('applies the selected mobile date range directly and resets pagination while retaining filters', async () => {

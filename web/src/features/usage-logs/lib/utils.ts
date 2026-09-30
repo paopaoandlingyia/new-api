@@ -196,6 +196,9 @@ export function buildApiParams(config: {
     ...(isAdmin && searchParams.upstreamAccount
       ? { upstream_account: String(searchParams.upstreamAccount) }
       : {}),
+    ...(isAdmin && searchParams.refusedOnly === true
+      ? { refused_only: true }
+      : {}),
     ...(searchParams.requestId
       ? { request_id: String(searchParams.requestId) }
       : {}),

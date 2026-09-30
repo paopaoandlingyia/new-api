@@ -57,6 +57,7 @@ export function buildSearchParams(
         ...(commonFilters.upstreamAccount && {
           upstreamAccount: commonFilters.upstreamAccount,
         }),
+        ...(commonFilters.refusedOnly && { refusedOnly: true }),
         ...(commonFilters.requestId && { requestId: commonFilters.requestId }),
         ...(commonFilters.upstreamRequestId && {
           upstreamRequestId: commonFilters.upstreamRequestId,

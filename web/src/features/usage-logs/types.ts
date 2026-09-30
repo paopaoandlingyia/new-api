@@ -54,6 +54,7 @@ export interface CommonLogFilters extends CommonFilters {
   group?: string
   username?: string
   upstreamAccount?: string
+  refusedOnly?: boolean
   requestId?: string
   upstreamRequestId?: string
 }
@@ -434,6 +435,7 @@ export interface GetLogsParams {
   request_id?: string
   upstream_request_id?: string
   upstream_account?: string
+  refused_only?: boolean
 }
 
 export interface GetLogsResponse {
@@ -459,6 +461,7 @@ export interface GetLogStatsParams {
   request_id?: string
   upstream_request_id?: string
   upstream_account?: string
+  refused_only?: boolean
 }
 
 export interface GetLogStatsResponse {

@@ -49,3 +49,31 @@ describe('upstream account log filter', () => {
     expect(userParams.upstream_account).toBeUndefined()
   })
 })
+
+describe('refusal log filter', () => {
+  test('preserves the selected refusal filter in URL and paginated administrator requests', () => {
+    const searchParams = buildSearchParams({ refusedOnly: true }, 'common')
+    expect(searchParams.refusedOnly).toBe(true)
+    const params = buildApiParams({
+      page: 2,
+      pageSize: 20,
+      searchParams,
+      isAdmin: true,
+    })
+    expect(params).toMatchObject({ p: 2, page_size: 20, refused_only: true })
+    expect(
+      buildSearchParams({ refusedOnly: false }, 'common')
+    ).not.toHaveProperty('refusedOnly')
+  })
+
+  test('does not send administrator refusal criteria to personal log endpoints', () => {
+    expect(
+      buildApiParams({
+        page: 1,
+        pageSize: 20,
+        searchParams: { refusedOnly: true },
+        isAdmin: false,
+      })
+    ).not.toHaveProperty('refused_only')
+  })
+})

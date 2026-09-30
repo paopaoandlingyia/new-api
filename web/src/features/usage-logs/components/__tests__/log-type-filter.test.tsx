@@ -36,6 +36,7 @@ import userEvent from '@testing-library/user-event'
 import { afterEach, expect, it, vi } from 'vitest'
 
 import { api } from '@/lib/api'
+import { useAuthStore } from '@/stores/auth-store'
 
 import { CommonLogsFilterBar } from '../common-logs-filter-bar'
 import { UsageLogsProvider } from '../usage-logs-provider'
@@ -53,13 +54,14 @@ function FilterFixture() {
   )
 }
 
-async function renderFilter() {
-  vi.spyOn(api, 'get').mockImplementation(async (url) => ({
-    data: {
-      success: true,
-      data: url === '/api/user/self/groups' ? {} : { quota: 0, rpm: 0, tpm: 0 },
-    },
-  }))
+async function renderFilter(initialEntry = '/usage-logs/common') {
+  vi.spyOn(api, 'get').mockImplementation(async (url) => {
+    if (url === '/api/group/') return { data: { success: true, data: [] } }
+    if (url === '/api/user/self/groups') {
+      return { data: { success: true, data: {} } }
+    }
+    return { data: { success: true, data: { quota: 0, rpm: 0, tpm: 0 } } }
+  })
   const root = createRootRoute()
   const auth = createRoute({ getParentRoute: () => root, id: '_authenticated' })
   const logs = createRoute({
@@ -70,7 +72,7 @@ async function renderFilter() {
   })
   const router = createRouter({
     routeTree: root.addChildren([auth.addChildren([logs])]),
-    history: createMemoryHistory({ initialEntries: ['/usage-logs/common'] }),
+    history: createMemoryHistory({ initialEntries: [initialEntry] }),
   })
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false } },
@@ -87,6 +89,66 @@ async function renderFilter() {
 afterEach(() => {
   cleanup()
   vi.restoreAllMocks()
+  useAuthStore.getState().auth.setUser(null)
+})
+
+it('applies the administrator refusal filter to URL and statistics, resetting pagination', async () => {
+  useAuthStore.getState().auth.setUser({ id: 1, username: 'admin', role: 10 })
+  const router = await renderFilter('/usage-logs/common?page=3&model=claude')
+  await userEvent.click(
+    screen.getByRole('combobox', { name: 'Refusal Status' })
+  )
+  await userEvent.click(screen.getByRole('option', { name: 'Only Refused' }))
+  expect(router.state.location.search).not.toHaveProperty('refusedOnly')
+  await userEvent.click(screen.getByRole('button', { name: 'Search' }))
+  await waitFor(() =>
+    expect(router.state.location.search).toMatchObject({
+      refusedOnly: true,
+      model: 'claude',
+      page: 1,
+    })
+  )
+  await waitFor(() =>
+    expect(api.get).toHaveBeenCalledWith(
+      expect.stringMatching(/\/api\/log\/stat\?.*refused_only=true/)
+    )
+  )
+  await userEvent.click(screen.getByRole('button', { name: 'Reset' }))
+  await waitFor(() =>
+    expect(router.state.location.search).not.toHaveProperty('refusedOnly')
+  )
+  expect(
+    screen.getByRole('combobox', { name: 'Refusal Status' })
+  ).toHaveTextContent('All Requests')
+})
+
+it('restores the refusal filter from URL and clears it when All Requests is applied', async () => {
+  useAuthStore.getState().auth.setUser({ id: 1, username: 'admin', role: 10 })
+  const router = await renderFilter('/usage-logs/common?refusedOnly=true')
+  expect(
+    screen.getByRole('combobox', { name: 'Refusal Status' })
+  ).toHaveTextContent('Only Refused')
+  await userEvent.click(
+    screen.getByRole('combobox', { name: 'Refusal Status' })
+  )
+  await userEvent.click(screen.getByRole('option', { name: 'All Requests' }))
+  await userEvent.click(screen.getByRole('button', { name: 'Search' }))
+  await waitFor(() =>
+    expect(router.state.location.search).not.toHaveProperty('refusedOnly')
+  )
+})
+
+it('does not expose or submit refusal filters in personal logs', async () => {
+  await renderFilter('/usage-logs/common?refusedOnly=true')
+  expect(
+    screen.queryByRole('combobox', { name: 'Refusal Status' })
+  ).not.toBeInTheDocument()
+  const statsUrls = vi
+    .mocked(api.get)
+    .mock.calls.map(([url]) => url)
+    .filter((url) => url.startsWith('/api/log/self/stat'))
+  expect(statsUrls.length).toBeGreaterThan(0)
+  expect(statsUrls.every((url) => !url.includes('refused_only'))).toBe(true)
 })
 
 it('marks only retired log types as deprecated while keeping historical filters selectable', async () => {

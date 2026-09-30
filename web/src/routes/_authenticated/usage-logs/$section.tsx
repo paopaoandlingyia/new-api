@@ -44,6 +44,7 @@ const usageLogsSearchSchema = z.object({
   group: z.string().optional().catch(''),
   username: z.string().optional().catch(''),
   upstreamAccount: z.string().optional().catch(''),
+  refusedOnly: z.literal(true).optional().catch(undefined),
   requestId: z.string().optional().catch(''),
   upstreamRequestId: z.string().optional().catch(''),
   startTime: z.number().optional(),

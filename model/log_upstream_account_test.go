@@ -46,14 +46,14 @@ func TestConsumeLogsFilterAndSumByUpstreamAccount(t *testing.T) {
 		})
 	}
 
-	logs, total, err := GetAllLogs(LogTypeConsume, 0, 0, "", "", "", 0, 20, 0, "", "", "", "friend-a")
+	logs, total, err := GetAllLogs(LogTypeConsume, 0, 0, "", "", "", 0, 20, 0, "", "", "", "friend-a", false)
 	require.NoError(t, err)
 	assert.Equal(t, int64(1), total)
 	require.Len(t, logs, 1)
 	assert.Equal(t, "friend-a", logs[0].UpstreamAccount)
 	assert.Equal(t, 120, logs[0].Quota)
 
-	stat, err := SumUsedQuota(LogTypeConsume, 0, 0, "", "", "", 0, "", "friend-a")
+	stat, err := SumUsedQuota(LogTypeConsume, 0, 0, "", "", "", 0, "", "friend-a", false)
 	require.NoError(t, err)
 	assert.Equal(t, 120, stat.Quota)
 	assert.Equal(t, 1, stat.Rpm)

@@ -92,6 +92,7 @@ function buildSearchSourceKey(values: {
   group?: unknown
   username?: unknown
   upstreamAccount?: unknown
+  refusedOnly?: unknown
   requestId?: unknown
   upstreamRequestId?: unknown
   type?: unknown
@@ -105,6 +106,7 @@ function buildSearchSourceKey(values: {
     values.group,
     values.username,
     values.upstreamAccount,
+    values.refusedOnly,
     values.requestId,
     values.upstreamRequestId,
     Array.isArray(values.type) ? values.type.join(',') : values.type,
@@ -158,6 +160,7 @@ export function CommonLogsFilterBar<TData>(
       group: searchParams.group,
       username: searchParams.username,
       upstreamAccount: searchParams.upstreamAccount,
+      refusedOnly: isAdmin ? searchParams.refusedOnly : undefined,
       requestId: searchParams.requestId,
       upstreamRequestId: searchParams.upstreamRequestId,
       type: searchParams.type,
@@ -173,6 +176,8 @@ export function CommonLogsFilterBar<TData>(
       group: searchParams.group || undefined,
       username: searchParams.username || undefined,
       upstreamAccount: searchParams.upstreamAccount || undefined,
+      refusedOnly:
+        isAdmin && searchParams.refusedOnly === true ? true : undefined,
       requestId: searchParams.requestId || undefined,
       upstreamRequestId: searchParams.upstreamRequestId || undefined,
     }
@@ -190,9 +195,11 @@ export function CommonLogsFilterBar<TData>(
     searchParams.group,
     searchParams.username,
     searchParams.upstreamAccount,
+    searchParams.refusedOnly,
     searchParams.requestId,
     searchParams.upstreamRequestId,
     searchParams.type,
+    isAdmin,
   ])
   const [draft, setDraft] = useState<CommonLogDraft>(() => searchState)
   const activeDraft =
@@ -201,7 +208,10 @@ export function CommonLogsFilterBar<TData>(
   const logType = activeDraft.logType
 
   const handleChange = useCallback(
-    (field: keyof CommonLogFilters, value: Date | string | undefined) => {
+    (
+      field: keyof CommonLogFilters,
+      value: Date | string | boolean | undefined
+    ) => {
       setDraft((current) => {
         const base =
           current.sourceKey === searchState.sourceKey ? current : searchState
@@ -276,7 +286,11 @@ export function CommonLogsFilterBar<TData>(
 
   const hasTypeFilter = logType !== LOG_TYPE_ALL_VALUE
   const hasAdditionalFilters =
-    !!filters.model || !!filters.group || hasTypeFilter || hasExpandedFilters
+    !!filters.model ||
+    !!filters.group ||
+    !!filters.refusedOnly ||
+    hasTypeFilter ||
+    hasExpandedFilters
 
   const expandedFilterCount = [
     filters.token,
@@ -439,6 +453,28 @@ export function CommonLogsFilterBar<TData>(
       </Select>
     </LogsFilterField>
   )
+  const refusalFilter = isAdmin ? (
+    <LogsFilterField>
+      <Select
+        items={[
+          { value: 'all', label: t('All Requests') },
+          { value: 'refused', label: t('Only Refused') },
+        ]}
+        value={filters.refusedOnly ? 'refused' : 'all'}
+        onValueChange={(value) =>
+          handleChange('refusedOnly', value === 'refused' ? true : undefined)
+        }
+      >
+        <SelectTrigger aria-label={t('Refusal Status')}>
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent alignItemWithTrigger={false}>
+          <SelectItem value='all'>{t('All Requests')}</SelectItem>
+          <SelectItem value='refused'>{t('Only Refused')}</SelectItem>
+        </SelectContent>
+      </Select>
+    </LogsFilterField>
+  ) : null
   const advancedFilters = (
     <>
       <LogsFilterField>
@@ -512,6 +548,7 @@ export function CommonLogsFilterBar<TData>(
           {modelFilter}
           {groupFilter}
           {typeFilter}
+          {refusalFilter}
         </>
       }
       advancedFilters={advancedFilters}
@@ -521,12 +558,17 @@ export function CommonLogsFilterBar<TData>(
           {modelFilter}
           {groupFilter}
           {typeFilter}
+          {refusalFilter}
           {advancedFilters}
         </>
       }
       mobileFilterCount={
-        [filters.model, filters.group, hasTypeFilter].filter(Boolean).length +
-        expandedFilterCount
+        [
+          filters.model,
+          filters.group,
+          filters.refusedOnly,
+          hasTypeFilter,
+        ].filter(Boolean).length + expandedFilterCount
       }
       hasAdvancedActiveFilters={hasExpandedFilters}
       advancedFilterCount={expandedFilterCount}

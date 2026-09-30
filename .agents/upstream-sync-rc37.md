@@ -86,6 +86,34 @@ Claude 非流式响应和 SSE `message_delta.delta` 解析 `stop_details.categor
 
 协议依据：[Anthropic Refusals and fallback](https://platform.claude.com/docs/en/build-with-claude/refusals-and-fallback)。类别可为 null，拒绝仍以 `stop_reason = "refusal"` 判定。
 
+## 2026-10-01 Claude 拒绝筛选
+
+用户已自行部署 `12c2ed65`，随后指出仅显示标记无法在大量日志中查找拒绝请求，并确认本轮范围：管理员普通请求日志增加“全部请求 / 仅拒绝”筛选；已有历史标记可查询；分页、总数和用量统计同步筛选；不改数据库结构、不增加类别筛选。
+
+界面复用现有 `LogsFilterToolbar`、`LogsFilterField` 和 `Select`，桌面与手机均可使用，搜索重置到第一页，URL 保留筛选状态，重置或选择全部请求可清除条件。所有七种语言已同步。管理员个人日志视图及普通用户不展示、不发送拒绝条件；个人接口忽略该管理员参数，继续移除 `admin_info`。
+
+管理员 `/api/log/` 与 `/api/log/stat` 接收 `refused_only=true`，非法布尔值返回 400。共用数据库条件精确匹配现有 `other.admin_info.reject_reason = "claude_stop_reason=refusal"`，列表计数、分页、用量及最近一分钟 RPM/TPM 均应用该条件。SQLite/MySQL/PostgreSQL 使用各自 JSON 提取语法，ClickHouse 使用 `JSONExtractString`；历史 `RecordLog` 可能保存空 `other`，前三者用 `NULLIF` 表达空记录没有拒绝元数据，非空损坏 JSON 不做静默降级。无新增列、索引、回填或启动迁移；大时间跨度查询仍需要解析范围内的日志，应结合时间、模型、渠道等条件使用，尚未对完整生产日志量做性能测量。
+
+真实数据库验证通过：SQLite **3.50.4**、MySQL **5.7.8-rc / 8.0.46**、PostgreSQL **9.6.24 / 18.4**、ClickHouse **25.3.14.14**。六个引擎/版本场景覆盖历史无类别标记、带空白的 JSON、空记录、普通请求、其他拦截、同名文本/前缀/大小写误匹配、null 原因、分页总数、时间与账号条件叠加、用量及速率。只使用独立 Docker 内部网络和合成数据。旧 MySQL 镜像的 schema v1 格式不能被当前 Docker 直接加载，使用临时 Skopeo 容器转换成现代格式后运行；未修改应用或生产 Docker 配置。
+
+```sh
+# 本机：通过（外部数据库在隔离 Linux 容器中执行同一个测试二进制）
+GOWORK=off go build ./...
+go test ./model -run 'TestClaudeRefusalLogFilterDatabaseMatrix|TestConsumeLogsFilterAndSumByUpstreamAccount' -count=1 -timeout=120s
+go test ./controller -run '^$' -count=1
+GOOS=linux GOARCH=amd64 CGO_ENABLED=0 GOWORK=off go test -c -p 4 -ldflags '-s -w' -o filter.test ./model
+# 隔离验证：六个真实数据库场景通过，实际命令含仅指向测试容器的 TEST_*_DSN
+sh /opt/new-api-refusal-filter-test/verify.sh
+# 临时接口验证程序：七个管理员列表/统计、参数校验、个人视图契约通过
+GOWORK=off go run /path/to/api-check.go
+# 前端（当前 shell 无 Bun，未改变依赖）：类型检查、定向 oxlint/oxfmt、生产构建通过
+cd web && npm run typecheck && npm run build
+# 日志类型、手机筛选、分组、API 参数与拒绝标记五个相关测试文件共 44 项通过
+npm run test -- src/features/usage-logs/components/__tests__/log-type-filter.test.tsx src/features/usage-logs/components/__tests__/mobile-filter.test.tsx src/features/usage-logs/components/__tests__/group-filter.test.tsx src/features/usage-logs/lib/__tests__/upstream-account-filter.test.ts src/features/usage-logs/components/__tests__/reject-reason.test.tsx
+```
+
+额外运行 `go test ./controller -run '^TestAdmin' -count=1 -timeout=120s` 时，Windows 中既有管理员验证测试因 `audit.db` 仍被占用而在 `TempDir` 清理阶段失败；没有修改这些无关夹具，也未宣称控制器完整回归通过。本次接口契约已单独验证通过。数据库日志及小型验证程序保留在 `F:/Relocated/Users/Administrator/.codex/tmp/new-api-refusal-filter-20261001/`。本轮仅提交代码，未部署或修改生产配置。
+
 ## 2026-10-01 OAuth 历史迁移补丁验证
 
 用户说明兼容补丁源于 TiDB 迁出，并授权验证是否可以恢复上游；本轮仅验证，没有删除正式代码中的补丁或部署。候选版本基于 `2b7cc0ab0` 的隔离源码副本，将 `CustomOAuthProvider.Enabled` 恢复为上游 `gorm:"default:false"`，移除 `ensureUnmanagedColumns` 及对应测试调用；主分支业务代码保持原状。
