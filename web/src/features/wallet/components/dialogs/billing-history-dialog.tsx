@@ -58,11 +58,15 @@ import {
 interface BillingHistoryDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
+  currentUserID?: number
+  onCryptoOrderSelect?: (tradeNo: string) => void
 }
 
 export function BillingHistoryDialog({
   open,
   onOpenChange,
+  currentUserID,
+  onCryptoOrderSelect,
 }: BillingHistoryDialogProps) {
   const { t } = useTranslation()
   const {
@@ -266,18 +270,36 @@ export function BillingHistoryDialog({
                       </div>
 
                       {/* Admin Actions */}
-                      {isAdmin && record.status === 'pending' && (
-                        <div className='mt-4 flex justify-end'>
-                          <Button
-                            size='sm'
-                            variant='outline'
-                            onClick={() => setConfirmTradeNo(record.trade_no)}
-                            disabled={completing}
-                          >
-                            {t('Complete Order')}
-                          </Button>
-                        </div>
-                      )}
+                      {record.payment_method === 'crypto' &&
+                        record.user_id === currentUserID &&
+                        onCryptoOrderSelect && (
+                          <div className='mt-4 flex justify-end'>
+                            <Button
+                              size='sm'
+                              variant='outline'
+                              onClick={() => {
+                                onOpenChange(false)
+                                onCryptoOrderSelect(record.trade_no)
+                              }}
+                            >
+                              {t('View payment details')}
+                            </Button>
+                          </div>
+                        )}
+                      {isAdmin &&
+                        record.status === 'pending' &&
+                        record.payment_method !== 'crypto' && (
+                          <div className='mt-4 flex justify-end'>
+                            <Button
+                              size='sm'
+                              variant='outline'
+                              onClick={() => setConfirmTradeNo(record.trade_no)}
+                              disabled={completing}
+                            >
+                              {t('Complete Order')}
+                            </Button>
+                          </div>
+                        )}
                     </div>
                   )
                 })}

@@ -86,7 +86,7 @@ func GetOptions(c *gin.Context) {
 	optionValues := make(map[string]string)
 	common.OptionMapRWMutex.Lock()
 	for k, v := range common.OptionMap {
-		if k == "theme.frontend" || k == "billing_setting.billing_mode" || k == "billing_setting.billing_expr" {
+		if k == "theme.frontend" || k == "billing_setting.billing_mode" || k == "billing_setting.billing_expr" || k == setting.CryptoPaymentConfigKey {
 			continue
 		}
 		value := common.Interface2String(v)
@@ -188,6 +188,10 @@ func UpdateOption(c *gin.Context) {
 			"success": false,
 			"message": "无效的参数",
 		})
+		return
+	}
+	if option.Key == setting.CryptoPaymentConfigKey {
+		common.ApiErrorMsg(c, "Use the crypto payment configuration endpoint")
 		return
 	}
 	switch option.Value.(type) {

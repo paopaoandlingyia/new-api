@@ -120,6 +120,9 @@ export interface WaffoPayMethod {
  * Topup configuration information
  */
 export interface TopupInfo {
+  /** USDT on TRON; other networks can add their own checkout options. */
+  enable_crypto_topup?: boolean
+  crypto_min_topup?: number
   /** Whether online topup is enabled */
   enable_online_topup: boolean
   /** Whether Stripe topup is enabled */
@@ -286,4 +289,15 @@ export interface BillingHistoryResponse {
  */
 export interface CompleteOrderRequest {
   trade_no: string
+}
+
+export interface CryptoPaymentOrder {
+  trade_no: string
+  network: string
+  asset: string
+  address: string
+  amount: string
+  credit_quota: number
+  expires_at: number
+  status: TopupStatus
 }

@@ -27,6 +27,7 @@ import {
   calculateStripeAmount,
   calculateWaffoAmount,
   calculateWaffoPancakeAmount,
+  calculateCryptoAmount,
   requestPayment,
   requestStripePayment,
   isApiSuccess,
@@ -46,6 +47,7 @@ import type { AmountRequest, AmountResponse } from '../types'
 type AmountCalculator = (request: AmountRequest) => Promise<AmountResponse>
 
 export interface PaymentAmountCalculators {
+  crypto?: AmountCalculator
   regular: AmountCalculator
   stripe: AmountCalculator
   waffo: AmountCalculator
@@ -53,6 +55,7 @@ export interface PaymentAmountCalculators {
 }
 
 const defaultPaymentAmountCalculators: PaymentAmountCalculators = {
+  crypto: calculateCryptoAmount,
   regular: calculateAmount,
   stripe: calculateStripeAmount,
   waffo: calculateWaffoAmount,
@@ -65,7 +68,12 @@ export async function requestPaymentAmount(
   calculators: PaymentAmountCalculators = defaultPaymentAmountCalculators
 ): Promise<number> {
   let calculator = calculators.regular
-  if (isStripePayment(paymentType)) {
+  if (paymentType === 'crypto') {
+    if (!calculators.crypto) {
+      throw new Error('Crypto amount calculator is required')
+    }
+    calculator = calculators.crypto
+  } else if (isStripePayment(paymentType)) {
     calculator = calculators.stripe
   } else if (isWaffoPayment(paymentType)) {
     calculator = calculators.waffo

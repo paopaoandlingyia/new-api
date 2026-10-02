@@ -22,6 +22,30 @@ import { PAYMENT_TYPES } from '../constants'
 import { requestPaymentAmount } from './use-payment'
 
 describe('payment amount routing', () => {
+  test('quotes crypto payments through their dedicated calculator', async () => {
+    const calls: string[] = []
+    const amount = await requestPaymentAmount(10, 'crypto', {
+      regular: async () => {
+        throw new Error('Unexpected regular payment quote')
+      },
+      stripe: async () => {
+        throw new Error('Unexpected Stripe quote')
+      },
+      waffo: async () => {
+        throw new Error('Unexpected Waffo quote')
+      },
+      waffoPancake: async () => {
+        throw new Error('Unexpected Pancake quote')
+      },
+      crypto: async (request) => {
+        calls.push(`crypto:${request.amount}`)
+        return { success: true, data: '10.00' }
+      },
+    })
+    expect(amount).toBe(10)
+    expect(calls).toEqual(['crypto:10'])
+  })
+
   test('uses the dedicated Waffo amount calculator', async () => {
     const calls: string[] = []
     const amount = await requestPaymentAmount(120, PAYMENT_TYPES.WAFFO, {

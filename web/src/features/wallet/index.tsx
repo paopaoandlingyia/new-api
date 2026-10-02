@@ -16,6 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
+import { useMutation } from '@tanstack/react-query'
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -23,10 +24,13 @@ import { SectionPageLayout } from '@/components/layout'
 import { useStatus } from '@/hooks/use-status'
 import { useSystemConfig } from '@/hooks/use-system-config'
 import { getSelf } from '@/lib/api'
+import { requireServerSuccess } from '@/lib/server-error-message'
 
+import { getCryptoOrder, requestCryptoPayment } from './api'
 import { AffiliateRewardsCard } from './components/affiliate-rewards-card'
 import { BillingHistoryDialog } from './components/dialogs/billing-history-dialog'
 import { CreemConfirmDialog } from './components/dialogs/creem-confirm-dialog'
+import { CryptoPaymentDialog } from './components/dialogs/crypto-payment-dialog'
 import { PaymentConfirmDialog } from './components/dialogs/payment-confirm-dialog'
 import { TransferDialog } from './components/dialogs/transfer-dialog'
 import { RechargeFormCard } from './components/recharge-form-card'
@@ -53,6 +57,7 @@ import type {
   PresetAmount,
   CreemProduct,
   WaffoPayMethod,
+  CryptoPaymentOrder,
 } from './types'
 
 interface WalletProps {
@@ -72,6 +77,34 @@ export function Wallet(props: WalletProps) {
   >(null)
   const [paymentLoading, setPaymentLoading] = useState<string | null>(null)
   const [confirmDialogOpen, setConfirmDialogOpen] = useState(false)
+  const [cryptoOrder, setCryptoOrder] = useState<CryptoPaymentOrder | null>(
+    null
+  )
+  const [cryptoDialogOpen, setCryptoDialogOpen] = useState(false)
+  const cryptoPayment = useMutation({
+    mutationFn: async (amount: number) => {
+      const response = await requestCryptoPayment(amount)
+      requireServerSuccess(response)
+      if (!response.data) throw new Error('Missing crypto order')
+      return response.data
+    },
+    onSuccess: (order) => {
+      setCryptoOrder(order)
+      setCryptoDialogOpen(true)
+    },
+  })
+  const resumeCryptoPayment = useMutation({
+    mutationFn: async (tradeNo: string) => {
+      const response = await getCryptoOrder(tradeNo)
+      requireServerSuccess(response)
+      if (!response.data) throw new Error('Missing crypto order')
+      return response.data
+    },
+    onSuccess: (order) => {
+      setCryptoOrder(order)
+      setCryptoDialogOpen(true)
+    },
+  })
   const [transferDialogOpen, setTransferDialogOpen] = useState(false)
   const [billingDialogOpen, setBillingDialogOpen] = useState(false)
   const [redemptionCode, setRedemptionCode] = useState('')
@@ -179,6 +212,11 @@ export function Wallet(props: WalletProps) {
       // Validate minimum topup
       const minTopup = getMinTopupAmount(topupInfo)
       if (topupAmount < minTopup) {
+        return
+      }
+
+      if (method.type === 'crypto') {
+        cryptoPayment.mutate(topupAmount)
         return
       }
 
@@ -308,7 +346,9 @@ export function Wallet(props: WalletProps) {
                   paymentAmount={paymentAmount}
                   calculating={calculating}
                   onPaymentMethodSelect={handlePaymentMethodSelect}
-                  paymentLoading={paymentLoading}
+                  paymentLoading={
+                    cryptoPayment.isPending ? 'crypto' : paymentLoading
+                  }
                   redemptionCode={redemptionCode}
                   onRedemptionCodeChange={setRedemptionCode}
                   onRedeem={handleRedeem}
@@ -376,6 +416,15 @@ export function Wallet(props: WalletProps) {
       <BillingHistoryDialog
         open={billingDialogOpen}
         onOpenChange={setBillingDialogOpen}
+        currentUserID={user?.id}
+        onCryptoOrderSelect={(tradeNo) => resumeCryptoPayment.mutate(tradeNo)}
+      />
+
+      <CryptoPaymentDialog
+        order={cryptoOrder}
+        open={cryptoDialogOpen}
+        onOpenChange={setCryptoDialogOpen}
+        onPaid={fetchUser}
       />
 
       <CreemConfirmDialog

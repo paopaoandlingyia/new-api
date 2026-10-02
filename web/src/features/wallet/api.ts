@@ -33,6 +33,7 @@ import type {
   AffiliateTransferResponse,
   BillingHistoryResponse,
   CompleteOrderRequest,
+  CryptoPaymentOrder,
   CreemPaymentRequest,
   CreemPaymentResponse,
   WaffoPaymentRequest,
@@ -245,4 +246,27 @@ export async function completeOrder(
 ): Promise<ApiResponse> {
   const res = await api.post('/api/user/topup/complete', request)
   return res.data
+}
+
+export async function requestCryptoPayment(
+  amount: number
+): Promise<ApiResponse<CryptoPaymentOrder>> {
+  const response = await api.post('/api/user/crypto/pay', { amount })
+  return response.data
+}
+
+export async function getCryptoOrder(
+  tradeNo: string
+): Promise<ApiResponse<CryptoPaymentOrder>> {
+  const response = await api.get(
+    `/api/user/crypto/orders/${encodeURIComponent(tradeNo)}`
+  )
+  return response.data
+}
+
+export async function calculateCryptoAmount(
+  request: AmountRequest
+): Promise<AmountResponse> {
+  const response = await api.post('/api/user/crypto/amount', request)
+  return response.data
 }

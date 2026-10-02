@@ -53,6 +53,25 @@ func GetTopUpInfo(c *gin.Context) {
 		}
 	}
 
+	cryptoMinTopup := int64(1)
+	cfg, err := setting.GetCryptoPaymentConfig()
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	enableCrypto := isCryptoTopUpEnabled(cfg)
+	if enableCrypto {
+		cryptoMinTopup = cfg.MinTopUp
+		if operation_setting.GetQuotaDisplayType() == operation_setting.QuotaDisplayTypeTokens {
+			minimum, err := common.WalletQuotaFromDecimalStrict(decimal.NewFromInt(cryptoMinTopup).Mul(decimal.NewFromFloat(common.QuotaPerUnit)))
+			if err != nil {
+				common.ApiError(c, err)
+				return
+			}
+			cryptoMinTopup = int64(minimum)
+		}
+		payMethods = append(payMethods, map[string]string{"name": "USDT (TRC20)", "type": model.PaymentProviderCrypto, "min_topup": strconv.FormatInt(cryptoMinTopup, 10)})
+	}
 	// Waffo Pancake is displayed above the standard Waffo gateway.
 	enableWaffoPancake := isWaffoPancakeTopUpEnabled()
 	if enableWaffoPancake {
@@ -97,6 +116,8 @@ func GetTopUpInfo(c *gin.Context) {
 	}
 
 	data := gin.H{
+		"enable_crypto_topup":              enableCrypto,
+		"crypto_min_topup":                 cryptoMinTopup,
 		"enable_online_topup":              isEpayTopUpEnabled(),
 		"enable_stripe_topup":              isStripeTopUpEnabled(),
 		"enable_creem_topup":               isCreemTopUpEnabled(),

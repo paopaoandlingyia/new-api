@@ -469,6 +469,9 @@ func ManualCompleteTopUp(tradeNo string, callerIp string) error {
 		}
 
 		// 幂等处理：已成功直接返回
+		if topUp.PaymentProvider == PaymentProviderCrypto {
+			return errors.New("加密货币订单必须通过已确认的到账记录补单")
+		}
 		if topUp.Status == common.TopUpStatusSuccess {
 			return nil
 		}

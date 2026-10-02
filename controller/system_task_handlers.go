@@ -9,6 +9,7 @@ import (
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/service"
+	"github.com/QuantumNous/new-api/setting"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
 )
 
@@ -22,6 +23,30 @@ func RegisterScheduledSystemTasks() {
 	service.RegisterSystemTaskHandler(modelUpdateHandler{})
 	service.RegisterSystemTaskHandler(midjourneyPollHandler{})
 	service.RegisterSystemTaskHandler(asyncTaskPollHandler{})
+	service.RegisterSystemTaskHandler(cryptoPaymentScanHandler{})
+}
+
+type cryptoPaymentScanHandler struct{}
+
+func (cryptoPaymentScanHandler) Type() string            { return "crypto_payment_scan" }
+func (cryptoPaymentScanHandler) Interval() time.Duration { return 30 * time.Second }
+func (cryptoPaymentScanHandler) NewPayload() any         { return nil }
+func (cryptoPaymentScanHandler) Enabled() bool {
+	cfg, err := setting.GetCryptoPaymentConfig()
+	// Continue monitoring existing orders when new checkouts are disabled.
+	if err != nil {
+		common.SysError(err.Error())
+		return false
+	}
+	return cfg.TRONAPIKey != ""
+}
+func (cryptoPaymentScanHandler) Run(ctx context.Context, task *model.SystemTask, runnerID string) {
+	count, err := service.RunCryptoPaymentScan(ctx)
+	status := model.SystemTaskStatusSucceeded
+	if err != nil {
+		status = model.SystemTaskStatusFailed
+	}
+	finishSystemTaskHandler(task, runnerID, status, map[string]int{"transfers": count}, err)
 }
 
 // channelTestHandler runs the scheduled "test all channels" job. Enablement and
