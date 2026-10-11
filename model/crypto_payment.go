@@ -211,7 +211,7 @@ func SettleCryptoTransfer(transferID int64, manualTradeNo string, callerIP strin
 		if manualTradeNo != "" {
 			method = "admin"
 		}
-		RecordTopupLog(userID, fmt.Sprintf("USDT充值成功，订单: %s，充值额度: %d，到账记录: %d", tradeNo, quota, transferID), callerIP, PaymentProviderCrypto, method)
+		RecordTopupLog(userID, common.NewMessage("USDT top-up succeeded, order: {{order}}, amount added: {{quota}}, receipt: {{receipt}}", map[string]any{"order": tradeNo, "quota": quota, "receipt": transferID}), callerIP, PaymentProviderCrypto, method)
 	}
 	return credited, nil
 }

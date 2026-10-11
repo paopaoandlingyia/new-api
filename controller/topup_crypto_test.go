@@ -136,6 +136,16 @@ func TestCryptoPaymentDatabaseMatrix(t *testing.T) {
 			}
 			require.NoError(t, db.First(user, user.Id).Error)
 			assert.Equal(t, 600, user.Quota, "repeated delivery must credit once")
+			var paymentLog model.Log
+			require.NoError(t, db.Where("user_id = ? AND type = ?", user.Id, model.LogTypeTopup).First(&paymentLog).Error)
+			var logDetails struct {
+				ContentParts []*common.Message `json:"content_parts"`
+			}
+			require.NoError(t, common.UnmarshalJsonStr(paymentLog.Other, &logDetails))
+			require.Len(t, logDetails.ContentParts, 1)
+			assert.Equal(t, "USDT top-up succeeded, order: {{order}}, amount added: {{quota}}, receipt: {{receipt}}", logDetails.ContentParts[0].Key)
+			assert.Equal(t, map[string]any{"order": orders[0].TradeNo, "quota": float64(500), "receipt": float64(record.ID)}, logDetails.ContentParts[0].Params)
+			assert.Equal(t, fmt.Sprintf("USDT top-up succeeded, order: %s, amount added: 500, receipt: %d", orders[0].TradeNo, record.ID), paymentLog.Content)
 			require.Error(t, model.ManualCompleteTopUp(orders[1].TradeNo, "test"), "generic manual completion must not bypass receipt consumption")
 			_, err = model.SettleCryptoTransfer(record.ID, orders[1].TradeNo, "test")
 			require.ErrorContains(t, err, "another order")
