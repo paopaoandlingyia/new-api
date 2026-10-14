@@ -1337,9 +1337,9 @@ func TestClaudeCacheOnlyUsageRemainsBillable(t *testing.T) {
 		usage     dto.ClaudeUsage
 		wantQuota int
 	}{
-		{name: "one-hour cache write", usage: dto.ClaudeUsage{CacheCreationInputTokens: 194754, CacheCreation: &dto.ClaudeCacheCreationUsage{Ephemeral1hInputTokens: 194754}}, wantQuota: 779016},
-		{name: "five-minute cache write", usage: dto.ClaudeUsage{CacheCreationInputTokens: 100, CacheCreation: &dto.ClaudeCacheCreationUsage{Ephemeral5mInputTokens: 100}}, wantQuota: 250},
-		{name: "cache read", usage: dto.ClaudeUsage{CacheReadInputTokens: 100}, wantQuota: 20},
+		{name: "one-hour cache write", usage: dto.ClaudeUsage{CacheCreationInputTokens: 20000, CacheCreation: &dto.ClaudeCacheCreationUsage{Ephemeral1hInputTokens: 20000}}, wantQuota: 100000},
+		{name: "five-minute cache write", usage: dto.ClaudeUsage{CacheCreationInputTokens: 100, CacheCreation: &dto.ClaudeCacheCreationUsage{Ephemeral5mInputTokens: 100}}, wantQuota: 313},
+		{name: "cache read", usage: dto.ClaudeUsage{CacheReadInputTokens: 100}, wantQuota: 25},
 		{name: "no usage", usage: dto.ClaudeUsage{}, wantQuota: 0},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -1350,7 +1350,7 @@ func TestClaudeCacheOnlyUsageRemainsBillable(t *testing.T) {
 				PriceData: hosttypes.PriceData{
 					ModelRatio: 2.5, CompletionRatio: 5, CacheRatio: 0.1,
 					CacheCreationRatio: 1.25, CacheCreation5mRatio: 1.25, CacheCreation1hRatio: 2,
-					GroupRatioInfo: hosttypes.GroupRatioInfo{GroupRatio: 0.8},
+					GroupRatioInfo: hosttypes.GroupRatioInfo{GroupRatio: 1},
 				},
 			}
 			usage := &dto.Usage{UsageSemantic: dto.BillingUsageSemanticAnthropic, BillingUsage: dto.NewClaudeMessagesBillingUsage(&tc.usage)}

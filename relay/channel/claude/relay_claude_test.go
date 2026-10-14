@@ -32,22 +32,22 @@ func TestClaudeStreamFinalUsagePreservesExplicitZeros(t *testing.T) {
 		wantInput, wantOutput, wantCacheWrite      int
 		wantLocalCount                             bool
 	}{
-		{name: "refusal with one-hour cache write", initialUsage: `{"input_tokens":0,"output_tokens":0,"cache_creation_input_tokens":194754,"cache_creation":{"ephemeral_5m_input_tokens":0,"ephemeral_1h_input_tokens":194754}}`, finalUsage: `{"output_tokens":0}`, stopReason: "refusal", wantCacheWrite: 194754},
+		{name: "refusal with one-hour cache write", initialUsage: `{"input_tokens":0,"output_tokens":0,"cache_creation_input_tokens":20000,"cache_creation":{"ephemeral_5m_input_tokens":0,"ephemeral_1h_input_tokens":20000}}`, finalUsage: `{"output_tokens":0}`, stopReason: "refusal", wantCacheWrite: 20000},
 		{name: "all-zero refusal", initialUsage: `{"input_tokens":0,"output_tokens":0}`, finalUsage: `{"output_tokens":0}`, stopReason: "refusal"},
 		{name: "normal zero-output completion", initialUsage: `{"input_tokens":12,"output_tokens":0}`, finalUsage: `{"output_tokens":0}`, stopReason: "end_turn", wantInput: 12},
 		{name: "terminal input correction to zero", initialUsage: `{"input_tokens":12,"output_tokens":0}`, finalUsage: `{"input_tokens":0,"output_tokens":0}`, stopReason: "refusal"},
 		{name: "terminal output correction to zero", initialUsage: `{"input_tokens":12,"output_tokens":1}`, finalUsage: `{"output_tokens":0}`, stopReason: "refusal", wantInput: 12},
-		{name: "missing input keeps explicit output zero", initialUsage: `{"output_tokens":0}`, finalUsage: `{"output_tokens":0}`, stopReason: "refusal", wantInput: 101311, wantLocalCount: true},
+		{name: "missing input keeps explicit output zero", initialUsage: `{"output_tokens":0}`, finalUsage: `{"output_tokens":0}`, stopReason: "refusal", wantInput: 1200, wantLocalCount: true},
 		{name: "missing final output keeps explicit input zero", initialUsage: `{"input_tokens":0,"output_tokens":0}`, finalUsage: `{}`, stopReason: "end_turn", wantOutput: 2, wantLocalCount: true},
-		{name: "missing terminal usage keeps initial cache", initialUsage: `{"input_tokens":0,"output_tokens":0,"cache_creation_input_tokens":194754,"cache_creation":{"ephemeral_1h_input_tokens":194754}}`, finalUsage: `null`, stopReason: "end_turn", wantOutput: 2, wantCacheWrite: 194754, wantLocalCount: true},
+		{name: "missing terminal usage keeps initial cache", initialUsage: `{"input_tokens":0,"output_tokens":0,"cache_creation_input_tokens":20000,"cache_creation":{"ephemeral_1h_input_tokens":20000}}`, finalUsage: `null`, stopReason: "end_turn", wantOutput: 2, wantCacheWrite: 20000, wantLocalCount: true},
 		{name: "interruption keeps explicit input zero", initialUsage: `{"input_tokens":0,"output_tokens":0}`, interrupted: true, wantOutput: 2, wantLocalCount: true},
-		{name: "missing all usage is estimated", initialUsage: `null`, finalUsage: `null`, stopReason: "end_turn", wantInput: 101311, wantOutput: 2, wantLocalCount: true},
+		{name: "missing all usage is estimated", initialUsage: `null`, finalUsage: `null`, stopReason: "end_turn", wantInput: 1200, wantOutput: 2, wantLocalCount: true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			c, _ := gin.CreateTestContext(httptest.NewRecorder())
 			c.Request = httptest.NewRequest(http.MethodPost, "/v1/messages", nil)
 			info := &relaycommon.RelayInfo{RelayFormat: types.RelayFormatClaude, ChannelMeta: &relaycommon.ChannelMeta{UpstreamModelName: "claude-opus-4-8"}}
-			info.SetEstimatePromptTokens(101311)
+			info.SetEstimatePromptTokens(1200)
 			state := &ClaudeResponseInfo{Usage: &dto.Usage{}}
 			initial := fmt.Sprintf(`{"type":"message_start","message":{"id":"msg_zero","model":"claude-opus-4-8","usage":%s}}`, tc.initialUsage)
 			require.Nil(t, HandleStreamResponseData(c, info, state, initial))
