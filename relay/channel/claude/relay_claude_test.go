@@ -1,11 +1,14 @@
 package claude
 
 import (
+	"fmt"
+	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/constant"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/relay/helper"
 	"github.com/QuantumNous/new-api/relaykit/dto"
@@ -19,6 +22,59 @@ import (
 
 func commonPointer[T any](value T) *T {
 	return &value
+}
+
+func TestClaudeStreamFinalUsagePreservesExplicitZeros(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	for _, tc := range []struct {
+		name, initialUsage, finalUsage, stopReason string
+		interrupted                                bool
+		wantInput, wantOutput, wantCacheWrite      int
+		wantLocalCount                             bool
+	}{
+		{name: "refusal with one-hour cache write", initialUsage: `{"input_tokens":0,"output_tokens":0,"cache_creation_input_tokens":194754,"cache_creation":{"ephemeral_5m_input_tokens":0,"ephemeral_1h_input_tokens":194754}}`, finalUsage: `{"output_tokens":0}`, stopReason: "refusal", wantCacheWrite: 194754},
+		{name: "all-zero refusal", initialUsage: `{"input_tokens":0,"output_tokens":0}`, finalUsage: `{"output_tokens":0}`, stopReason: "refusal"},
+		{name: "normal zero-output completion", initialUsage: `{"input_tokens":12,"output_tokens":0}`, finalUsage: `{"output_tokens":0}`, stopReason: "end_turn", wantInput: 12},
+		{name: "terminal input correction to zero", initialUsage: `{"input_tokens":12,"output_tokens":0}`, finalUsage: `{"input_tokens":0,"output_tokens":0}`, stopReason: "refusal"},
+		{name: "terminal output correction to zero", initialUsage: `{"input_tokens":12,"output_tokens":1}`, finalUsage: `{"output_tokens":0}`, stopReason: "refusal", wantInput: 12},
+		{name: "missing input keeps explicit output zero", initialUsage: `{"output_tokens":0}`, finalUsage: `{"output_tokens":0}`, stopReason: "refusal", wantInput: 101311, wantLocalCount: true},
+		{name: "missing final output keeps explicit input zero", initialUsage: `{"input_tokens":0,"output_tokens":0}`, finalUsage: `{}`, stopReason: "end_turn", wantOutput: 2, wantLocalCount: true},
+		{name: "missing terminal usage keeps initial cache", initialUsage: `{"input_tokens":0,"output_tokens":0,"cache_creation_input_tokens":194754,"cache_creation":{"ephemeral_1h_input_tokens":194754}}`, finalUsage: `null`, stopReason: "end_turn", wantOutput: 2, wantCacheWrite: 194754, wantLocalCount: true},
+		{name: "interruption keeps explicit input zero", initialUsage: `{"input_tokens":0,"output_tokens":0}`, interrupted: true, wantOutput: 2, wantLocalCount: true},
+		{name: "missing all usage is estimated", initialUsage: `null`, finalUsage: `null`, stopReason: "end_turn", wantInput: 101311, wantOutput: 2, wantLocalCount: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			c, _ := gin.CreateTestContext(httptest.NewRecorder())
+			c.Request = httptest.NewRequest(http.MethodPost, "/v1/messages", nil)
+			info := &relaycommon.RelayInfo{RelayFormat: types.RelayFormatClaude, ChannelMeta: &relaycommon.ChannelMeta{UpstreamModelName: "claude-opus-4-8"}}
+			info.SetEstimatePromptTokens(101311)
+			state := &ClaudeResponseInfo{Usage: &dto.Usage{}}
+			initial := fmt.Sprintf(`{"type":"message_start","message":{"id":"msg_zero","model":"claude-opus-4-8","usage":%s}}`, tc.initialUsage)
+			require.Nil(t, HandleStreamResponseData(c, info, state, initial))
+			if tc.wantOutput > 0 {
+				require.Nil(t, HandleStreamResponseData(c, info, state, `{"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"hello"}}`))
+			}
+			if !tc.interrupted {
+				terminal := fmt.Sprintf(`{"type":"message_delta","delta":{"stop_reason":%q},"usage":%s}`, tc.stopReason, tc.finalUsage)
+				require.Nil(t, HandleStreamResponseData(c, info, state, terminal))
+				require.Nil(t, HandleStreamResponseData(c, info, state, `{"type":"message_stop"}`))
+			}
+			HandleStreamFinalResponse(c, info, state)
+			assert.Equal(t, tc.wantInput, state.Usage.PromptTokens)
+			assert.Equal(t, tc.wantOutput, state.Usage.CompletionTokens)
+			assert.Equal(t, tc.wantCacheWrite, state.Usage.PromptTokensDetails.CachedCreationTokens)
+			assert.Equal(t, tc.wantCacheWrite, state.Usage.ClaudeCacheCreation1hTokens)
+			assert.Equal(t, tc.wantLocalCount, common.GetContextKeyBool(c, constant.ContextKeyLocalCountTokens))
+			if state.Usage.BillingUsage != nil {
+				canonical, ok := state.Usage.BillingUsage.CanonicalUsage()
+				require.True(t, ok)
+				assert.Equal(t, tc.wantInput, canonical.PromptTokens, "settlement must preserve the same input count")
+				assert.Equal(t, tc.wantOutput, canonical.CompletionTokens)
+				assert.Equal(t, tc.wantCacheWrite, canonical.PromptTokensDetails.CachedCreationTokens)
+			}
+			t.Logf("input=%d output=%d cache_write_1h=%d local_count=%t", state.Usage.PromptTokens, state.Usage.CompletionTokens, state.Usage.ClaudeCacheCreation1hTokens, common.GetContextKeyBool(c, constant.ContextKeyLocalCountTokens))
+		})
+	}
 }
 
 func TestResponseOpenAI2ClaudeToolUseInputIsObject(t *testing.T) {
