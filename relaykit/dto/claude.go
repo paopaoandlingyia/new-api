@@ -650,41 +650,6 @@ type ClaudeUsage struct {
 	ClaudeCacheCreation1hTokens int                  `json:"claude_cache_creation_1_h_tokens"`
 	ServerToolUse               *ClaudeServerToolUse `json:"server_tool_use,omitempty"`
 	BillingUsage                *BillingUsage        `json:"billing_usage,omitempty"`
-	inputTokensPresent          bool
-	outputTokensPresent         bool
-}
-
-// UnmarshalJSON distinguishes omitted counters from valid upstream zero values.
-func (u *ClaudeUsage) UnmarshalJSON(data []byte) error {
-	type usageAlias ClaudeUsage
-	var usage usageAlias
-	decoded := struct {
-		*usageAlias
-		InputTokens  *int `json:"input_tokens"`
-		OutputTokens *int `json:"output_tokens"`
-	}{usageAlias: &usage}
-	if err := kitutil.Unmarshal(data, &decoded); err != nil {
-		return err
-	}
-	if decoded.InputTokens != nil {
-		usage.InputTokens = *decoded.InputTokens
-	}
-	if decoded.OutputTokens != nil {
-		usage.OutputTokens = *decoded.OutputTokens
-	}
-	*u = ClaudeUsage(usage)
-	u.inputTokensPresent = decoded.InputTokens != nil
-	u.outputTokensPresent = decoded.OutputTokens != nil
-	return nil
-}
-
-// HasInputTokens also supports counters populated directly by a converter.
-func (u *ClaudeUsage) HasInputTokens() bool {
-	return u != nil && (u.inputTokensPresent || u.InputTokens != 0)
-}
-
-func (u *ClaudeUsage) HasOutputTokens() bool {
-	return u != nil && (u.outputTokensPresent || u.OutputTokens != 0)
 }
 
 type ClaudeCacheCreationUsage struct {
