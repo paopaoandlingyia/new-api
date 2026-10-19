@@ -16,101 +16,33 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { Window } from 'happy-dom'
-import { afterAll, describe, expect, test, vi } from 'vitest'
+import { render, screen } from '@testing-library/react'
+import { describe, expect, test } from 'vitest'
 
-const domWindow = new Window()
-const domGlobals = [
-  'window',
-  'document',
-  'navigator',
-  'HTMLElement',
-  'SVGElement',
-  'Node',
-  'Element',
-  'Event',
-  'CustomEvent',
-  'MutationObserver',
-  'requestAnimationFrame',
-  'cancelAnimationFrame',
-  'getComputedStyle',
-] as const
-
-for (const key of domGlobals) {
-  Object.defineProperty(globalThis, key, {
-    configurable: true,
-    value: domWindow[key],
-  })
-}
-
-const { act } = await import('react')
-const { createRoot } = await import('react-dom/client')
-const { createInstance } = await import('i18next')
-const { I18nextProvider, initReactI18next } = await import('react-i18next')
-const { ModelCard } = await import('../model-card')
-
-const i18n = createInstance()
-await i18n.use(initReactI18next).init({
-  lng: 'en',
-  resources: {
-    en: {
-      translation: {
-        Copy: 'Copy',
-        Details: 'Details',
-        Input: 'Input',
-        Output: 'Output',
-        'Token-based': 'Token-based',
-      },
-    },
-  },
-})
-
-const reactTestGlobals = globalThis as typeof globalThis & {
-  IS_REACT_ACT_ENVIRONMENT?: boolean
-}
-reactTestGlobals.IS_REACT_ACT_ENVIRONMENT = true
-
-vi.mock('@/lib/lobe-icon', () => ({
-  getLobeIcon: () => null,
-}))
+import { ModelCard } from '../model-card'
 
 describe('pricing model card status visibility', () => {
-  afterAll(() => {
-    domWindow.close()
-  })
-
-  test('shows catalog metadata without exposing an operational status', async () => {
-    const container = document.createElement('div')
-    document.body.append(container)
-    const root = createRoot(container)
-
-    await act(async () => {
-      root.render(
-        <I18nextProvider i18n={i18n}>
-          <ModelCard
-            model={{
-              id: 1,
-              model_name: 'example-model',
-              description: 'Example model description',
-              quota_type: 0,
-              model_ratio: 1,
-              completion_ratio: 1,
-              enable_groups: ['default'],
-              supported_endpoint_types: ['openai'],
-            }}
-            onClick={() => {}}
-          />
-        </I18nextProvider>
-      )
-    })
-
-    expect(container.textContent).toMatch(/example-model/)
-    expect(container.textContent).toMatch(/default/)
-    expect(container.textContent).not.toMatch(
-      /Available|Unstable|Unavailable|Not monitored/
+  test('shows catalog metadata without exposing an operational status', () => {
+    const { container } = render(
+      <ModelCard
+        model={{
+          id: 1,
+          model_name: 'example-model',
+          description: 'Example model description',
+          quota_type: 0,
+          model_ratio: 1,
+          completion_ratio: 1,
+          enable_groups: ['default'],
+          supported_endpoint_types: ['openai'],
+        }}
+        onClick={() => {}}
+      />
     )
 
-    await act(async () => root.unmount())
-    container.remove()
+    expect(screen.getByRole('heading', { name: 'example-model' })).toBeVisible()
+    expect(screen.getByText('default')).toBeVisible()
+    expect(container).not.toHaveTextContent(
+      /Available|Unstable|Unavailable|Not monitored/
+    )
   })
 })

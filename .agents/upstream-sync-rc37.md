@@ -1,10 +1,37 @@
 # new-api 上游同步与部署记录
 
-## 当前生产边界
+## 历史生产边界（2026-09-30）
 
 用户于 2026-09-30 明确要求：生产容器正在提供服务，暂时不得重启或切换镜像。代码整合、Git 推送、隔离验证不代表生产切换授权。下述部署步骤仅在用户后续明确允许切换时执行。
 
-当前生产仍为 `ghcr.io/paopaoandlingyia/new-api:sha-0575582b`，对应 `codex/group-user-concurrency-limit` 的 rc.37 代码。删除源码分支不会改变正在运行的镜像。
+该日记录的生产镜像为 `ghcr.io/paopaoandlingyia/new-api:sha-0575582b`，对应 `codex/group-user-concurrency-limit` 的 rc.37 代码。后续部署见各日期记录，当前生产版本须以服务器 `.env` 和运行容器为准。删除源码分支不会改变正在运行的镜像。
+
+## 2026-10-19 rc.45 本地整合
+
+用户确认先整合固定 `v1.0.0-rc.45`，再实现客户分组展示隔离；仅限本地代码、验证和提交，未授权本轮生产发布。整合前提交 `59280f332`，上游提交 `6cf0d90b5ff27f901697dddd61e0c28aba8efefc`。本机已添加 `upstream = https://github.com/QuantumNous/new-api.git`。继续使用现有 `main` 和个人镜像工作流，没有推送、构建远程镜像或接触生产服务。
+
+- 保留 Claude 独立 count_tokens、拒绝类别及筛选、管理员上游账号日志、条件错误日志、模型状态页、公开指标隐私、USDT 支付、HTML no-store 和构建元信息。
+- 日志列表采用上游 `LogFilter`，把本站 `UpstreamAccount`、`RefusedOnly` 接入共用筛选，使新增导出与列表条件一致；个人导出清除上游账号和管理员元数据，并忽略管理员筛选参数。沿用上游错误脱敏更新。
+- 游乐场清理的是浏览器未区分账号的旧本地记录，随后按账号保存。普通用户日志范围默认 365 天。新增令牌额度查询开关：旧令牌升级后没有获得该权限，创建/更新沿用上游规则。
+- 前端测试移除一个旧测试对未声明 happy-dom 的依赖，改用现有 Vitest/Testing Library 环境；修正导出夹具的本站字段和性能徽标测试，保留模型广场不请求公开性能指标的本站行为。没有额外增加依赖或 UI 封装。
+
+验证通过：主模块 `GOWORK=off go build ./...`；独立 `relaykit` 的同命令及 `go test ./dto ./relayconvert/...`；控制器、模型、服务层、中间件、common、perf_metrics、relay、Claude 及其他相关渠道、插件测试。前端 `bun run typecheck`、`bun run build`，12 个含本站合并改动的前端文件定向 oxlint，相关 54 个前端测试文件合计 757 项通过（首次 4 文件因 react-icons 下载未完成无法加载，安装后重跑全部通过）。Bun 通过临时 npm exec 使用，安装遵循 `bun install --frozen-lockfile`，没有改写锁文件到上游以外的版本。
+
+真实数据库：SQLite **3.50.4**、MySQL **8.0.46**、PostgreSQL **18.6**，各覆盖新装和本站 rc.43 升级，候选迁移分别执行两次；MySQL/PostgreSQL 分设主库和日志库。合成用户余额、令牌额度、分组、活跃订阅、禁用套餐、六位小数价格、USDT 钱包检查点/订单和拒绝日志均保留；令牌及 USDT 金额预留唯一性保留，两次候选启动后的列和索引一致。SQLite 升级结构仅新增令牌额度查询列。另用真实 ClickHouse **25.3.14.14** 验证拒绝筛选及新增日志导出，包括个人视图隐私。
+
+```sh
+# 所有 TEST_/AUDIT_ DSN 均仅指向本机一次性 Docker 测试库
+go test ./model -run 'Test(ChannelPriorityDatabaseMatrix|ClaudeRefusalLogFilterDatabaseMatrix|MigrationSchemaStability)/(mysql|sqlite)' -count=1 -v
+go test ./model -run 'Test(ChannelPriorityDatabaseMatrix|ClaudeRefusalLogFilterDatabaseMatrix|MigrationSchemaStability)/postgres' -count=1 -v
+go test ./controller -run 'Test(LogExportDatabaseMatrix|CryptoPaymentDatabaseMatrix)/mysql|TestTokenMigrationFromChar48ToVarchar128MySQL' -count=1 -v
+go test ./controller -run 'Test(LogExportDatabaseMatrix|CryptoPaymentDatabaseMatrix)/postgres|TestTokenMigrationFromChar48ToVarchar128Postgres' -count=1 -v
+go test ./model -run 'TestClaudeRefusalLogFilterDatabaseMatrix/clickhouse' -count=1 -v
+go test ./controller -run 'TestLogExportDatabaseMatrix/clickhouse' -count=1 -v
+```
+
+验证限制：扩展 `go test ./controller ./model ./service ./middleware ./common ./pkg/perf_metrics ./relay/... ./plugins/... ./router/...` 中，路由全覆盖检查缺少本站模型状态路由声明、两个缓存测试仍期待上游缓存策略；三类失败已在整合前 `59280f332` 源码复现，没有修改这些既有问题。上游新增 `TestAdaptorMasksDialedHostsInDialFailure/channel_proxy_host` 在当前网络环境返回 EOF，未出现夹具预期的代理主机名；对应实现/测试与 rc.45 一致，没有为此改业务代码。因此不宣称全仓库测试全绿。未调用真实上游或真实支付，不宣称全站 ASVS 合规；认证整合参考 [OWASP Authentication](https://cheatsheetseries.owasp.org/cheatsheets/Authentication_Cheat_Sheet.html)、[Session Management](https://cheatsheetseries.owasp.org/cheatsheets/Session_Management_Cheat_Sheet.html) 和 [ASVS](https://owasp.org/projects/asvs)，沿用上游认证、会话和令牌权限回归。
+
+一次性迁移验证源码及结果在 `/tmp/newapi-rc45-validation/`，其他检查日志为 `/tmp/newapi-rc45-*.log`；不作为日常发布工具。
 
 ## 固定使用现有发布流程
 

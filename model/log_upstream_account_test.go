@@ -46,7 +46,7 @@ func TestConsumeLogsFilterAndSumByUpstreamAccount(t *testing.T) {
 		})
 	}
 
-	logs, total, err := GetAllLogs(LogTypeConsume, 0, 0, "", "", "", 0, 20, 0, "", "", "", "friend-a", false)
+	logs, total, err := GetAllLogs(LogFilter{Type: LogTypeConsume, UpstreamAccount: "friend-a"}, 0, 20)
 	require.NoError(t, err)
 	assert.Equal(t, int64(1), total)
 	require.Len(t, logs, 1)
@@ -59,7 +59,7 @@ func TestConsumeLogsFilterAndSumByUpstreamAccount(t *testing.T) {
 	assert.Equal(t, 1, stat.Rpm)
 	assert.Equal(t, 15, stat.Tpm)
 
-	userLogs, _, err := GetUserLogs(1, LogTypeConsume, 0, 0, "", "", 0, 20, "", "", "")
+	userLogs, _, err := GetUserLogs(1, LogFilter{Type: LogTypeConsume}, 0, 20)
 	require.NoError(t, err)
 	require.Len(t, userLogs, 2)
 	assert.Empty(t, userLogs[0].UpstreamAccount)

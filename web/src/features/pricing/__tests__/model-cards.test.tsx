@@ -236,7 +236,9 @@ describe('model cards', () => {
       const metrics = screen.getByLabelText(
         'Performance metrics for the last 24 hours'
       )
-      expect(within(metrics).getByText(expected)).toBeVisible()
+      expect(
+        within(metrics).getByText('Status').parentElement
+      ).toHaveTextContent(expected)
       expect(within(metrics).getByText('Status')).toBeVisible()
       expect(within(metrics).getByText('1.20s')).toBeVisible()
       expect(within(metrics).getByText('42.0t/s')).toBeVisible()
@@ -454,123 +456,46 @@ describe('model cards', () => {
     expect(grid).not.toHaveClass('min-[1440px]:grid-cols-3')
   })
 
-  it('lights slots 23 and 18 when series has the current hour and five hours earlier', () => {
-    vi.useFakeTimers()
-    vi.setSystemTime(new Date('2026-09-07T12:00:00.000Z'))
-    const currentHourStart = Math.floor(Date.now() / 1000 / 3600) * 3600
-
+  it('shows only available status samples in timestamp order with fixed spacing', () => {
     render(
       <ModelPerfBadge
         perf={{
           avg_latency_ms: 1200,
           avg_tps: 42,
-          success_rate: 100,
-          window_start: currentHourStart - 23 * 3600,
+          success_rate: 50,
           recent_success_series: [
-            { ts: currentHourStart, success_rate: 100 },
-            { ts: currentHourStart - 5 * 3600, success_rate: 80 },
+            { ts: 18000, success_rate: 0 },
+            { ts: 3600, success_rate: 100 },
+            { ts: 7200, success_rate: Number.NaN },
           ],
         }}
       />
     )
-
-    const spans = [
-      ...screen.getByRole('img', {
-        name: 'Recent success-rate samples; gray bars indicate missing data.',
-      }).children,
-    ]
-    expect(spans).toHaveLength(24)
-    spans.forEach((slot, index) => {
-      if (index === 18 || index === 23) {
-        expect(slot.classList.contains('bg-muted-foreground/15')).toBe(false)
-        return
-      }
-      expect(slot.classList.contains('bg-muted-foreground/15')).toBe(true)
-    })
-    vi.useRealTimers()
+    const strip = screen.getByRole('img', { name: 'Success rate' })
+    expect(strip).toHaveClass('gap-px')
+    expect(strip.children).toHaveLength(2)
+    expect(strip.children[0]).toHaveClass('bg-emerald-500')
+    expect(strip.children[1]).toHaveClass('bg-red-500')
   })
 
-  it('keeps all 24 slots gray when a series point is 24 hours before the current hour', () => {
-    vi.useFakeTimers()
-    vi.setSystemTime(new Date('2026-09-07T12:00:00.000Z'))
-    const currentHourStart = Math.floor(Date.now() / 1000 / 3600) * 3600
-
-    render(
-      <ModelPerfBadge
-        perf={{
-          avg_latency_ms: 1200,
-          avg_tps: 42,
-          success_rate: 100,
-          window_start: currentHourStart - 23 * 3600,
-          recent_success_series: [
-            { ts: currentHourStart - 24 * 3600, success_rate: 100 },
-          ],
-        }}
-      />
-    )
-
-    const spans = [
-      ...screen.getByRole('img', {
-        name: 'Recent success-rate samples; gray bars indicate missing data.',
-      }).children,
-    ]
-    expect(spans).toHaveLength(24)
-    spans.forEach((slot) => {
-      expect(slot.classList.contains('bg-muted-foreground/15')).toBe(true)
-    })
-    vi.useRealTimers()
-  })
-
-  it('keeps all 24 slots gray when recent_success_series is undefined', () => {
-    render(
-      <ModelPerfBadge
-        perf={{ avg_latency_ms: 1200, avg_tps: 42, success_rate: 100 }}
-      />
-    )
-
-    const spans = [
-      ...screen.getByRole('img', {
-        name: 'Recent success-rate samples; gray bars indicate missing data.',
-      }).children,
-    ]
-    expect(spans).toHaveLength(24)
-    spans.forEach((slot) => {
-      expect(slot.classList.contains('bg-muted-foreground/15')).toBe(true)
-    })
-  })
-
-  it('uses the server window even when the browser clock is a day ahead', () => {
-    vi.useFakeTimers()
-    vi.setSystemTime(new Date('2026-09-07T12:37:00.000Z'))
-    const currentHourStart = Math.floor(Date.now() / 1000 / 3600) * 3600
-
-    render(
-      <ModelPerfBadge
-        perf={{
-          avg_latency_ms: 1200,
-          avg_tps: 42,
-          success_rate: 80,
-          window_start: currentHourStart - 47 * 3600,
-          recent_success_series: [
-            { ts: currentHourStart - 29 * 3600, success_rate: 80 },
-          ],
-        }}
-      />
-    )
-
-    const spans = [
-      ...screen.getByRole('img', {
-        name: 'Recent success-rate samples; gray bars indicate missing data.',
-      }).children,
-    ]
-    expect(spans).toHaveLength(24)
-    spans.forEach((slot, index) => {
-      if (index === 18) {
-        expect(slot.classList.contains('bg-muted-foreground/15')).toBe(false)
-        return
-      }
-      expect(slot.classList.contains('bg-muted-foreground/15')).toBe(true)
-    })
-    vi.useRealTimers()
-  })
+  it.each([undefined, [], [{ ts: 3600, success_rate: Number.NaN }]])(
+    'shows an empty state without placeholder bars for an absent or invalid series: %j',
+    (series) => {
+      render(
+        <ModelPerfBadge
+          perf={{
+            avg_latency_ms: 1200,
+            avg_tps: 42,
+            success_rate: 100,
+            recent_success_series: series,
+          }}
+        />
+      )
+      const strip = screen.getByRole('img', {
+        name: 'No performance data available',
+      })
+      expect(strip).toHaveTextContent('—')
+      expect(strip.querySelectorAll('[aria-hidden]')).toHaveLength(0)
+    }
+  )
 })
