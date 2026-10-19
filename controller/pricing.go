@@ -2,6 +2,7 @@ package controller
 
 import (
 	"maps"
+	"slices"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/model"
@@ -21,16 +22,28 @@ func filterPricingByUsableGroups(pricing []model.Pricing, usableGroup map[string
 
 	filtered := make([]model.Pricing, 0, len(pricing))
 	for _, item := range pricing {
-		if common.StringsContains(item.EnableGroup, "all") {
-			filtered = append(filtered, item)
-			continue
-		}
-		for _, group := range item.EnableGroup {
-			if _, ok := usableGroup[group]; ok {
-				filtered = append(filtered, item)
-				break
+		// Pricing is shared across users. Allocate a response-owned group list so
+		// filtering one customer's catalog cannot change another customer's cache.
+		visibleGroups := make([]string, 0, len(item.EnableGroup))
+		if slices.Contains(item.EnableGroup, "all") {
+			for group := range usableGroup {
+				if group != "" && group != "auto" {
+					visibleGroups = append(visibleGroups, group)
+				}
+			}
+			slices.Sort(visibleGroups)
+		} else {
+			for _, group := range item.EnableGroup {
+				if _, ok := usableGroup[group]; ok && group != "" && group != "auto" {
+					visibleGroups = append(visibleGroups, group)
+				}
 			}
 		}
+		if len(visibleGroups) == 0 {
+			continue
+		}
+		item.EnableGroup = visibleGroups
+		filtered = append(filtered, item)
 	}
 	return filtered
 }
@@ -56,6 +69,11 @@ func GetPricing(c *gin.Context) {
 	}
 
 	usableGroup = service.GetUserUsableGroups(group)
+	for name := range usableGroup {
+		if name != "auto" && (name == "" || !ratio_setting.ContainsGroupRatio(name)) {
+			delete(usableGroup, name)
+		}
+	}
 	pricing = filterPricingByUsableGroups(pricing, usableGroup)
 	// check groupRatio contains usableGroup
 	for group := range ratio_setting.GetGroupRatioCopy() {

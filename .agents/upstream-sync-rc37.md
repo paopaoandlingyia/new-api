@@ -33,6 +33,14 @@ go test ./controller -run 'TestLogExportDatabaseMatrix/clickhouse' -count=1 -v
 
 一次性迁移验证源码及结果在 `/tmp/newapi-rc45-validation/`，其他检查日志为 `/tmp/newapi-rc45-*.log`；不作为日常发布工具。
 
+### 客户分组展示隔离
+
+在 rc.45 合并提交 `0a48140ab` 之后单独实施。仅修改生产文件 `controller/pricing.go`：接口的可用分组排除未配置倍率的普通分组；每个模型的 `enable_groups` 只包含当前客户可选的具体分组，无可见分组的模型不返回；原 `all` 标记展开为该客户的具体分组，`auto` 仍是选择器的虚拟选项，不作为模型标签。继续沿用现有全局可用分组、所属分组和特殊可用分组配置，没有改写客户权限配置。
+
+过滤时分配新的分组切片，禁止修改全局价格缓存。模型卡片、表格、详情和接口同步收敛，不需要前端改动。新增一个控制器测试文件覆盖客户 A → 客户 B → 客户 A → 匿名访问的共享缓存场景、仅其他客户可见的模型、未配置分组、`all`、仅 `auto` 和空输入。先用 Go overlay 在修改前复现失败，候选及实际修改后通过；最终 `go test ./controller -count=1`、`GOWORK=off go build ./...` 通过。此阶段没有数据库结构或查询变更。
+
+本次创建的 MySQL/PostgreSQL/ClickHouse 容器及匿名数据卷已清理，Docker 虚拟机的临时代理配置已移除，Colima 恢复为运行前的关闭状态。没有推送或生产发布。
+
 ## 固定使用现有发布流程
 
 仓库：[paopaoandlingyia/new-api](https://github.com/paopaoandlingyia/new-api)。上游：[QuantumNous/new-api](https://github.com/QuantumNous/new-api)。
