@@ -15,7 +15,7 @@ Docker 构建固定使用上游 Go **1.26.10** 镜像及摘要，`go.mod` 和发
 
 生产主库、日志库、部署配置和应用数据已备份至服务器 `/opt/new-api-backups/20261021T171346Z-before-rc46/`，包含 SHA256 清单，SQL gzip 完整性检查通过。备份含敏感内容，只留服务器，不输出或下载。
 
-镜像发布沿用 **Publish personal Docker image**，输入固定完整提交号；短提交号会被 checkout 当成分支名而失败。发布运行：https://github.com/paopaoandlingyia/new-api/actions/runs/39642327065 。生产保留 r45 / `sha-f0a89b16`；镜像发布成功后交付用户手动切换。
+镜像发布沿用 **Publish personal Docker image**，输入固定完整提交号；短提交号会被 checkout 当成分支名而失败。发布运行：https://github.com/paopaoandlingyia/new-api/actions/runs/39642327065 。发布成功，镜像为 `ghcr.io/paopaoandlingyia/new-api:sha-59847930`，摘要 `sha256:81a3b1a835d43da12ca780b7bb8d5c9bc92a555e53b2e930dd9264eea4f5faa6`。从成品镜像提取的二进制实测 Go **1.26.10**。仅下载及检查镜像，未启动该应用镜像、未改生产 `.env`、未重启或切换容器；生产仍为 r45 / `sha-f0a89b16`、healthy、重启次数 0。后续由用户手动择时替换。
 
 本机验证日志为 `/tmp/newapi-rc46-*.log`；隔离数据库容器及匿名数据卷随验证结束清理。一次性脚本不作为日常发布依赖。
 
