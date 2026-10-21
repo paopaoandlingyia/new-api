@@ -1,5 +1,24 @@
 # new-api 上游同步与部署记录
 
+## 2026-10-22 rc.46 安全升级
+
+用户确认跟进完整 rc.46，随后明确要求生产镜像替换由用户自行择时执行；本轮仅整合、验证、推送和发布镜像，禁止修改生产 `.env`、重启或切换生产容器。合并提交 `5984793047b7dedd346396d284cb9f8a5a7f154f`，上游标签 `v1.0.0-rc.46`。保留现有定制；冲突处理保留构建提交号、独立 count_tokens 的免计费行为、条件错误日志、USDT 配置过滤和本站翻译，同时采纳上游 Claude 保活与 Resend 配置。
+
+Docker 构建固定使用上游 Go **1.26.10** 镜像及摘要，`go.mod` 和发布工作流同步提高最低版本。仅重新构建旧 Dockerfile 无法修复 CVE-2026-111943。验证也显式使用 `GOTOOLCHAIN=go1.26.10`，主模块完整构建、Linux 候选构建及独立 relaykit/tokenkit 构建通过，候选二进制的 Go 构建信息为 1.26.10；线上旧 new-api 二进制实测为 1.26.1，claudeRelay 实测已为 1.26.10。
+
+验证结果：
+
+- `go test ./common/... ./controller ./model ./relay/... ./service ./setting/model_status_setting -count=1 -timeout=180s` 中，除既有代理域名夹具的本机网络差异外全部通过；同一夹具编译为 Linux 测试二进制后在服务器独立容器复核通过。没有为此改业务代码。独立 relaykit 的 `GOWORK=off go test ./... -count=1 -timeout=120s` 全部通过。
+- Bun **1.4.0** 按上游锁文件安装。前端 typecheck、生产构建、70 个相关测试文件 / **995** 项测试、涉及文件的 oxlint 与 oxfmt 检查通过；oxlint 只有上游 warning。可灵插件的定向 lint 无 error、格式检查通过。
+- SQLite **3.50.4**、MySQL **8.0.46**、PostgreSQL **18.4**：审计排序索引、schema 稳定性与本站拒绝日志筛选矩阵通过。六个完整应用场景覆盖三个引擎的新装和当前 r45 镜像升级；每个候选启动两次，列与索引保持稳定，合成用户余额、管理员价格、旧统计数据和审计记录保留，新增缓存统计可以累计。MySQL/PostgreSQL 分设主库和日志库，日志库历史审计记录保留。测试只使用独立容器、数据库与合成数据。
+- 未调用真实上游或真实支付，未实际发送邮件。没有宣称全仓库测试全绿或全站 ASVS 合规。邮件相关沿用上游凭据不回显和失败回归，参考 OWASP Authentication / Session Management Cheat Sheets。
+
+生产主库、日志库、部署配置和应用数据已备份至服务器 `/opt/new-api-backups/20261021T171346Z-before-rc46/`，包含 SHA256 清单，SQL gzip 完整性检查通过。备份含敏感内容，只留服务器，不输出或下载。
+
+镜像发布沿用 **Publish personal Docker image**，输入固定完整提交号；短提交号会被 checkout 当成分支名而失败。发布运行：https://github.com/paopaoandlingyia/new-api/actions/runs/39642327065 。生产保留 r45 / `sha-f0a89b16`；镜像发布成功后交付用户手动切换。
+
+本机验证日志为 `/tmp/newapi-rc46-*.log`；隔离数据库容器及匿名数据卷随验证结束清理。一次性脚本不作为日常发布依赖。
+
 ## 历史生产边界（2026-09-30）
 
 用户于 2026-09-30 明确要求：生产容器正在提供服务，暂时不得重启或切换镜像。代码整合、Git 推送、隔离验证不代表生产切换授权。下述部署步骤仅在用户后续明确允许切换时执行。
