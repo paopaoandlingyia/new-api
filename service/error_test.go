@@ -121,7 +121,7 @@ func TestRelayErrorHandlerKeepsOpenAIErrorMessage(t *testing.T) {
 	require.Equal(t, message, newAPIError.Error())
 }
 
-func TestRelayErrorHandlerClassifiesOfficialIngressAdmissionError(t *testing.T) {
+func TestRelayErrorHandlerPreservesOfficialIngressAdmissionError(t *testing.T) {
 	resp := &http.Response{
 		StatusCode: http.StatusForbidden,
 		Body:       io.NopCloser(strings.NewReader(`{"error":{"type":"permission_error","message":"official ingress requires a Claude Code-shaped request"}}`)),
@@ -129,9 +129,10 @@ func TestRelayErrorHandlerClassifiesOfficialIngressAdmissionError(t *testing.T) 
 
 	newAPIError := RelayErrorHandler(context.Background(), resp, false)
 
-	require.Equal(t, types.ErrorCodeAccessDenied, newAPIError.GetErrorCode())
-	require.True(t, types.IsSkipRetryError(newAPIError))
-	require.False(t, types.IsRecordErrorLog(newAPIError))
+	require.Equal(t, "official ingress requires a Claude Code-shaped request", newAPIError.Error())
+	require.NotEqual(t, types.ErrorCodeAccessDenied, newAPIError.GetErrorCode())
+	require.False(t, types.IsSkipRetryError(newAPIError))
+	require.True(t, types.IsRecordErrorLog(newAPIError))
 	require.Equal(t, http.StatusForbidden, newAPIError.StatusCode)
 }
 

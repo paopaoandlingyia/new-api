@@ -118,7 +118,6 @@ func RelayErrorHandler(ctx context.Context, resp *http.Response, showBodyWhenFai
 		oaiError := errResponse.TryToOpenAIError()
 		if oaiError != nil {
 			newApiErr = types.WithOpenAIError(*oaiError, resp.StatusCode)
-			newApiErr = classifyClientAdmissionError(newApiErr)
 			if showBodyWhenFail {
 				newApiErr.Err = buildErrWithBody(newApiErr.Error())
 			}
@@ -132,22 +131,10 @@ func RelayErrorHandler(ctx context.Context, resp *http.Response, showBodyWhenFai
 		logger.LogError(ctx, common.LogText("bad response status code %d with empty error message, body: %s", resp.StatusCode, responseBodyPreview))
 	}
 	newApiErr = types.NewOpenAIError(errors.New(message), types.ErrorCodeBadResponseStatusCode, resp.StatusCode)
-	newApiErr = classifyClientAdmissionError(newApiErr)
 	if showBodyWhenFail {
 		newApiErr.Err = buildErrWithBody(newApiErr.Error())
 	}
 	return
-}
-
-func classifyClientAdmissionError(err *types.NewAPIError) *types.NewAPIError {
-	if err == nil || err.StatusCode != http.StatusForbidden {
-		return err
-	}
-	if !strings.Contains(strings.ToLower(err.Error()), "official ingress requires a claude code-shaped request") {
-		return err
-	}
-	return types.NewOpenAIError(errors.New(err.Error()), types.ErrorCodeAccessDenied, err.StatusCode,
-		types.ErrOptionWithSkipRetry(), types.ErrOptionWithNoRecordErrorLog())
 }
 
 func ResetStatusCode(newApiErr *types.NewAPIError, statusCodeMappingStr string) {
