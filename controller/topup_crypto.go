@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"math"
 	"net/http"
+	"slices"
 	"strings"
 	"time"
 
@@ -20,7 +21,7 @@ import (
 )
 
 func isCryptoTopUpEnabled(cfg setting.CryptoPaymentConfig) bool {
-	return cfg.Enabled && cfg.TRONAddress != "" && cfg.TRONAPIKey != "" && operation_setting.IsPaymentComplianceConfirmed()
+	return cfg.Enabled && len(cfg.Networks()) > 0 && operation_setting.IsPaymentComplianceConfirmed()
 }
 
 func GetCryptoPaymentConfig(c *gin.Context) {
@@ -30,8 +31,10 @@ func GetCryptoPaymentConfig(c *gin.Context) {
 		return
 	}
 	keySet := cfg.TRONAPIKey != ""
+	rpcSet := cfg.BSCRPCURL != ""
 	cfg.TRONAPIKey = ""
-	common.ApiSuccess(c, gin.H{"config": cfg, "api_key_set": keySet})
+	cfg.BSCRPCURL = ""
+	common.ApiSuccess(c, gin.H{"config": cfg, "api_key_set": keySet, "bsc_rpc_set": rpcSet})
 }
 
 func SaveCryptoPaymentConfig(c *gin.Context) {
@@ -42,7 +45,9 @@ func SaveCryptoPaymentConfig(c *gin.Context) {
 	}
 	cfg.TRONAddress = strings.TrimSpace(cfg.TRONAddress)
 	cfg.TRONAPIKey = strings.TrimSpace(cfg.TRONAPIKey)
-	if cfg.TRONAPIKey == "" {
+	cfg.BSCAddress = strings.TrimSpace(cfg.BSCAddress)
+	cfg.BSCRPCURL = strings.TrimSpace(cfg.BSCRPCURL)
+	if cfg.TRONAPIKey == "" || cfg.BSCRPCURL == "" {
 		previous, err := setting.GetCryptoPaymentConfig()
 		if err != nil {
 			common.ApiError(c, err)
@@ -50,7 +55,12 @@ func SaveCryptoPaymentConfig(c *gin.Context) {
 		}
 		// GET deliberately omits the query API credential; an unchanged blank
 		// password field preserves it, as with existing payment settings.
-		cfg.TRONAPIKey = previous.TRONAPIKey
+		if cfg.TRONAPIKey == "" {
+			cfg.TRONAPIKey = previous.TRONAPIKey
+		}
+		if cfg.BSCRPCURL == "" {
+			cfg.BSCRPCURL = previous.BSCRPCURL
+		}
 	}
 	if err := cfg.Validate(); err != nil {
 		common.ApiError(c, err)
@@ -62,18 +72,32 @@ func SaveCryptoPaymentConfig(c *gin.Context) {
 			return
 		}
 	}
-	if cfg.Enabled && (cfg.TRONAddress == "" || cfg.TRONAPIKey == "") {
-		common.ApiErrorMsg(c, "TRON address and query API key are required")
+	if cfg.Enabled && len(cfg.Networks()) == 0 {
+		common.ApiErrorMsg(c, "Configure at least one USDT payment network")
 		return
 	}
 	if cfg.Enabled && !operation_setting.IsPaymentComplianceConfirmed() {
 		common.ApiErrorMsg(c, "Complete the existing payment compliance confirmation first")
 		return
 	}
-	if cfg.TRONAddress != "" {
+	if cfg.TRONAddress != "" && cfg.TRONAPIKey != "" {
 		if _, err := model.EnsureCryptoWallet(cryptopay.TRON, cryptopay.USDT, cfg.TRONAddress); err != nil {
 			common.ApiError(c, err)
 			return
+		}
+	}
+	if cfg.BSCAddress != "" {
+		address, err := cryptopay.BSCAddress(cfg.BSCAddress)
+		if err != nil {
+			common.ApiError(c, err)
+			return
+		}
+		cfg.BSCAddress = address
+		if cfg.BSCRPCURL != "" {
+			if _, err := model.EnsureCryptoWallet(cryptopay.BSC, cryptopay.USDT, address); err != nil {
+				common.ApiError(c, err)
+				return
+			}
 		}
 	}
 	raw, err := common.Marshal(cfg)
@@ -163,20 +187,31 @@ func RequestCryptoPay(c *gin.Context) {
 		return
 	}
 	if !isCryptoTopUpEnabled(cfg) {
-		common.ApiErrorMsg(c, "USDT-TRC20 payments are disabled")
+		common.ApiErrorMsg(c, "USDT payments are disabled")
 		return
 	}
-	var req AmountRequest
+	var req struct {
+		Amount  int64  `json:"amount"`
+		Network string `json:"network"`
+	}
 	if err := common.DecodeJson(c.Request.Body, &req); err != nil {
 		common.ApiError(c, err)
 		return
+	}
+	if !slices.Contains(cfg.Networks(), req.Network) {
+		common.ApiErrorMsg(c, "Select an available USDT payment network")
+		return
+	}
+	address := cfg.TRONAddress
+	if req.Network == cryptopay.BSC {
+		address = cfg.BSCAddress
 	}
 	quota, base, err := cryptoTopUpPrice(req.Amount, c.GetInt("id"), cfg)
 	if err != nil {
 		common.ApiError(c, err)
 		return
 	}
-	wallet, err := model.EnsureCryptoWallet(cryptopay.TRON, cryptopay.USDT, cfg.TRONAddress)
+	wallet, err := model.EnsureCryptoWallet(req.Network, cryptopay.USDT, address)
 	if err != nil {
 		common.ApiError(c, err)
 		return
@@ -240,7 +275,16 @@ func ListCryptoTransfers(c *gin.Context) {
 	}
 	items := make([]transferResponse, 0, len(records))
 	for _, record := range records {
-		items = append(items, transferResponse{CryptoTransfer: record, Amount: decimal.NewFromInt(record.AmountUnits).Shift(-6).StringFixed(6)})
+		amount := decimal.NewFromInt(record.AmountUnits).Shift(-6).StringFixed(6)
+		if record.Network == cryptopay.BSC {
+			raw, err := decimal.NewFromString(record.RawAmount)
+			if err != nil {
+				common.ApiError(c, err)
+				return
+			}
+			amount = raw.Shift(-18).String()
+		}
+		items = append(items, transferResponse{CryptoTransfer: record, Amount: amount})
 	}
 	common.ApiSuccess(c, gin.H{"items": items, "total": total})
 }

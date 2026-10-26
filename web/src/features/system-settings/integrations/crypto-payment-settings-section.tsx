@@ -52,6 +52,9 @@ const schema = z.object({
   enabled: z.boolean(),
   tron_address: z.string(),
   tron_api_key: z.string(),
+  bsc_enabled: z.boolean(),
+  bsc_address: z.string(),
+  bsc_rpc_url: z.string(),
   unit_price: z
     .string()
     .refine((value) => Number(value) > 0 && Number(value) <= 10000),
@@ -62,8 +65,10 @@ type Config = z.infer<typeof schema>
 interface ConfigResponse {
   config: Config
   api_key_set: boolean
+  bsc_rpc_set: boolean
 }
 interface Transfer {
+  network: string
   id: number
   transaction_id: string
   event_index: number
@@ -107,7 +112,7 @@ function CryptoPaymentSettingsForm(props: { data: ConfigResponse }) {
       requireServerSuccess(response.data)
     },
     onSuccess: async () => {
-      form.reset({ ...form.getValues(), tron_api_key: '' })
+      form.reset({ ...form.getValues(), tron_api_key: '', bsc_rpc_url: '' })
       toast.success(t('Saved successfully'))
       await queryClient.invalidateQueries({
         queryKey: ['crypto-payment-config'],
@@ -146,7 +151,7 @@ function CryptoPaymentSettingsForm(props: { data: ConfigResponse }) {
     <SettingsSection title={t('Crypto payments')}>
       <p className='text-muted-foreground text-sm'>
         {t(
-          'Accept USDT directly into your TRON wallet. No wallet private key is stored.'
+          'Accept USDT directly into your wallets. No wallet private key is stored.'
         )}
       </p>
       <Form {...form}>
@@ -166,7 +171,7 @@ function CryptoPaymentSettingsForm(props: { data: ConfigResponse }) {
                 controlId='crypto-enabled'
                 checked={field.value}
                 onCheckedChange={field.onChange}
-                label={t('Enable USDT-TRC20 payments')}
+                label={t('Enable USDT payments')}
               />
             )}
           />
@@ -175,7 +180,7 @@ function CryptoPaymentSettingsForm(props: { data: ConfigResponse }) {
             name='tron_address'
             render={({ field }) => (
               <FormItem>
-                <FormLabel>{t('Receiving address')}</FormLabel>
+                <FormLabel>{t('TRON receiving address')}</FormLabel>
                 <FormControl>
                   <Input {...field} autoComplete='off' />
                 </FormControl>
@@ -202,6 +207,58 @@ function CryptoPaymentSettingsForm(props: { data: ConfigResponse }) {
                   />
                 </FormControl>
                 <FormMessage />
+              </FormItem>
+            )}
+          />
+          <FormField
+            control={form.control}
+            name='bsc_enabled'
+            render={({ field }) => (
+              <SettingsSwitchField
+                controlId='crypto-bsc-enabled'
+                checked={field.value}
+                onCheckedChange={field.onChange}
+                label={t('Enable BNB Smart Chain (BEP-20)')}
+              />
+            )}
+          />
+          <FormField
+            control={form.control}
+            name='bsc_address'
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>{t('BSC receiving address')}</FormLabel>
+                <FormControl>
+                  <Input {...field} autoComplete='off' />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+          <FormField
+            control={form.control}
+            name='bsc_rpc_url'
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>{t('BSC mainnet RPC URL')}</FormLabel>
+                <FormControl>
+                  <Input
+                    {...field}
+                    type='password'
+                    autoComplete='new-password'
+                    placeholder={
+                      props.data.bsc_rpc_set
+                        ? t('Leave blank to keep the existing key')
+                        : ''
+                    }
+                  />
+                </FormControl>
+                <FormMessage />
+                <p className='text-muted-foreground text-sm'>
+                  {t(
+                    'Use an HTTPS mainnet RPC that supports eth_getLogs and finalized blocks. Only the configured USDT contract is accepted.'
+                  )}
+                </p>
               </FormItem>
             )}
           />
@@ -281,6 +338,12 @@ function CryptoPaymentSettingsForm(props: { data: ConfigResponse }) {
       {transfers.data?.items.map((transfer) => (
         <div key={transfer.id} className='space-y-2 rounded-lg border p-3'>
           <p className='font-mono'>{transfer.amount} USDT</p>
+          <p className='text-sm'>
+            {t('Network')}:{' '}
+            {transfer.network === 'bsc'
+              ? 'BNB Smart Chain (BEP-20)'
+              : 'TRON (TRC20)'}
+          </p>
           <p className='text-sm break-all'>{transfer.address}</p>
           <div className='flex items-center gap-2'>
             <span className='min-w-0 font-mono text-xs break-all'>

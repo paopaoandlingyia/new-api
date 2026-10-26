@@ -37,7 +37,7 @@ func (cryptoPaymentScanHandler) Enabled() bool {
 		common.SysError(err.Error())
 		return false
 	}
-	return cfg.TRONAPIKey != ""
+	return cfg.TRONAPIKey != "" || cfg.BSCRPCURL != ""
 }
 func (cryptoPaymentScanHandler) Run(ctx context.Context, task *model.SystemTask, runnerID string) {
 	count, err := service.RunCryptoPaymentScan(ctx)

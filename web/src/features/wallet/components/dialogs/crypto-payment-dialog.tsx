@@ -74,7 +74,10 @@ export function CryptoPaymentDialog(props: Props) {
       open={props.open}
       onOpenChange={props.onOpenChange}
       title={t('USDT payment')}
-      description={t('Send the exact amount using TRON (TRC20) only.')}
+      description={t('Send the exact amount using {{network}} only.', {
+        network:
+          order.network === 'bsc' ? 'BNB Smart Chain (BEP-20)' : 'TRON (TRC20)',
+      })}
       contentClassName='sm:max-w-lg'
       footer={
         <Button variant='outline' onClick={() => props.onOpenChange(false)}>
@@ -132,7 +135,12 @@ export function CryptoPaymentDialog(props: Props) {
             )}
           </div>
         </div>
-        <p className='text-sm'>{t('Network')}: TRON (TRC20)</p>
+        <p className='text-sm'>
+          {t('Network')}:{' '}
+          {order.network === 'bsc'
+            ? 'BNB Smart Chain (BEP-20)'
+            : 'TRON (TRC20)'}
+        </p>
         <p className='text-sm break-all'>
           {t('Order Number')}: {order.trade_no}
         </p>
@@ -142,6 +150,15 @@ export function CryptoPaymentDialog(props: Props) {
               {t(
                 'Pay before {{time}}. The identifying suffix is below 0.01 USDT and does not increase your credit. Ensure the amount received matches exactly; withdrawal fees are separate.',
                 { time: new Date(order.expires_at).toISOString() }
+              )}
+            </AlertDescription>
+          </Alert>
+        )}
+        {pending && (
+          <Alert>
+            <AlertDescription>
+              {t(
+                'Your payment service must support six decimal places. Check the amount received after withdrawal fees. Do not round the amount or use withdraw all.'
               )}
             </AlertDescription>
           </Alert>

@@ -120,9 +120,10 @@ export interface WaffoPayMethod {
  * Topup configuration information
  */
 export interface TopupInfo {
-  /** USDT on TRON; other networks can add their own checkout options. */
+  /** Available networks for USDT checkout. */
   enable_crypto_topup?: boolean
   crypto_min_topup?: number
+  crypto_networks?: CryptoNetwork[]
   /** Whether online topup is enabled */
   enable_online_topup: boolean
   /** Whether Stripe topup is enabled */
@@ -291,9 +292,11 @@ export interface CompleteOrderRequest {
   trade_no: string
 }
 
+export type CryptoNetwork = 'tron' | 'bsc'
+
 export interface CryptoPaymentOrder {
   trade_no: string
-  network: string
+  network: CryptoNetwork
   asset: string
   address: string
   amount: string

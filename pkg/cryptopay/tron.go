@@ -34,8 +34,9 @@ type Transfer struct {
 	TransactionID string
 	EventIndex    int
 	Address       string
-	Amount        int64 // Smallest asset units; USDT on TRON has six decimal places.
-	Timestamp     int64 // Block timestamp in milliseconds.
+	Amount        int64  // Exact micro-USDT, or zero when RawAmount cannot identify an order.
+	RawAmount     string // BSC uint256 in token base units (18 decimals); empty for legacy TRON records.
+	Timestamp     int64  // Block timestamp in milliseconds.
 }
 
 type Page struct {

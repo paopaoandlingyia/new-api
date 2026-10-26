@@ -52,6 +52,7 @@ type CryptoTransfer struct {
 	EventIndex     int    `json:"event_index" gorm:"uniqueIndex:crypto_transfer_event"`
 	Address        string `json:"address" gorm:"type:varchar(64)"`
 	AmountUnits    int64  `json:"amount_units"`
+	RawAmount      string `json:"raw_amount,omitempty" gorm:"type:varchar(78)"`
 	BlockTimestamp int64  `json:"block_timestamp"`
 	TradeNo        string `json:"trade_no" gorm:"type:varchar(255);index"`
 	ReviewReason   string `json:"review_reason" gorm:"type:varchar(255)"`
@@ -104,10 +105,21 @@ func CreateCryptoPaymentOrder(walletID int64, topup *TopUp, creditQuota int, bas
 
 // RecordCryptoTransfer is idempotent across page replay and multiple masters.
 func RecordCryptoTransfer(transfer cryptopay.Transfer) (*CryptoTransfer, bool, error) {
-	if transfer.Amount <= 0 || transfer.Timestamp <= 0 || transfer.TransactionID == "" || transfer.EventIndex < 0 {
+	if transfer.Network == cryptopay.BSC {
+		amount, err := cryptopay.BSCMicroAmount(transfer.RawAmount)
+		if err != nil {
+			return nil, false, err
+		}
+		if amount != transfer.Amount {
+			return nil, false, fmt.Errorf("BSC transfer amount normalization mismatch")
+		}
+	} else if transfer.RawAmount != "" || transfer.Amount <= 0 {
+		return nil, false, fmt.Errorf("invalid confirmed transfer amount")
+	}
+	if transfer.Timestamp <= 0 || transfer.TransactionID == "" || transfer.EventIndex < 0 {
 		return nil, false, fmt.Errorf("invalid confirmed transfer")
 	}
-	record := &CryptoTransfer{Network: transfer.Network, Asset: transfer.Asset, TransactionID: transfer.TransactionID, EventIndex: transfer.EventIndex, Address: transfer.Address, AmountUnits: transfer.Amount, BlockTimestamp: transfer.Timestamp}
+	record := &CryptoTransfer{Network: transfer.Network, Asset: transfer.Asset, TransactionID: transfer.TransactionID, EventIndex: transfer.EventIndex, Address: transfer.Address, AmountUnits: transfer.Amount, RawAmount: transfer.RawAmount, BlockTimestamp: transfer.Timestamp}
 	result := DB.Clauses(clause.OnConflict{DoNothing: true}).Create(record)
 	if result.Error != nil {
 		return nil, false, result.Error
@@ -116,7 +128,7 @@ func RecordCryptoTransfer(transfer cryptopay.Transfer) (*CryptoTransfer, bool, e
 	if err := DB.Where("network = ? AND transaction_id = ? AND event_index = ?", transfer.Network, transfer.TransactionID, transfer.EventIndex).First(record).Error; err != nil {
 		return nil, false, err
 	}
-	if record.Asset != transfer.Asset || record.Address != transfer.Address || record.AmountUnits != transfer.Amount || record.BlockTimestamp != transfer.Timestamp {
+	if record.Asset != transfer.Asset || record.Address != transfer.Address || record.AmountUnits != transfer.Amount || record.RawAmount != transfer.RawAmount || record.BlockTimestamp != transfer.Timestamp {
 		return nil, false, fmt.Errorf("conflicting confirmed transfer %s/%d", transfer.TransactionID, transfer.EventIndex)
 	}
 	return record, inserted, nil

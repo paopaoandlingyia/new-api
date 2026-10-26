@@ -1,13 +1,16 @@
 package controller
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"io"
+	"math/big"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"sync"
 	"testing"
@@ -269,6 +272,7 @@ func TestCryptoTRONReceiptVerification(t *testing.T) {
 type cryptoTestScanner struct {
 	calls      []string
 	failSecond bool
+	transfers  []cryptopay.Transfer
 }
 
 func (scanner *cryptoTestScanner) Scan(_ context.Context, _ string, _, _ int64, cursor string) (cryptopay.Page, error) {
@@ -279,7 +283,7 @@ func (scanner *cryptoTestScanner) Scan(_ context.Context, _ string, _, _ int64, 
 	if scanner.failSecond {
 		return cryptopay.Page{}, fmt.Errorf("query service unavailable")
 	}
-	return cryptopay.Page{}, nil
+	return cryptopay.Page{Transfers: scanner.transfers}, nil
 }
 
 func TestCryptoScanResumesAfterFailure(t *testing.T) {
@@ -289,13 +293,13 @@ func TestCryptoScanResumesAfterFailure(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, db.Model(wallet).Update("created_at", time.Now().Add(-time.Hour).UnixMilli()).Error)
 	scanner := &cryptoTestScanner{failSecond: true}
-	_, err = service.ScanCryptoPaymentsOnce(context.Background(), scanner)
+	_, err = service.ScanCryptoPaymentsOnce(context.Background(), map[string]cryptopay.Scanner{cryptopay.TRON: scanner})
 	require.ErrorContains(t, err, "unavailable")
 	require.NoError(t, db.First(wallet, wallet.ID).Error)
 	assert.Equal(t, "second-page", wallet.ScanCursor)
 	assert.Zero(t, wallet.ScannedThrough)
 	scanner.failSecond = false
-	_, err = service.ScanCryptoPaymentsOnce(context.Background(), scanner)
+	_, err = service.ScanCryptoPaymentsOnce(context.Background(), map[string]cryptopay.Scanner{cryptopay.TRON: scanner})
 	require.NoError(t, err)
 	assert.Equal(t, []string{"", "second-page", "second-page"}, scanner.calls)
 	require.NoError(t, db.First(wallet, wallet.ID).Error)
@@ -329,7 +333,7 @@ func TestCryptoCheckoutOwnershipAndValidation(t *testing.T) {
 		*operation_setting.GetPaymentSetting() = oldCompliance
 		require.NoError(t, common.UpdateTopupGroupRatioByJSONString(oldGroupRatios))
 	})
-	cfg := setting.CryptoPaymentConfig{Enabled: true, TRONAddress: cryptopay.TRONUSDTContract, TRONAPIKey: "query-only-key", UnitPrice: "1", MinTopUp: 1, OrderMinutes: 30}
+	cfg := setting.CryptoPaymentConfig{Enabled: true, TRONAddress: cryptopay.TRONUSDTContract, TRONAPIKey: "query-only-key", BSCAddress: cryptopay.BSCUSDTContract, BSCRPCURL: "https://rpc.example.test/private-api-key", UnitPrice: "1", MinTopUp: 1, OrderMinutes: 30}
 	raw, err := common.Marshal(cfg)
 	require.NoError(t, err)
 	common.OptionMap[setting.CryptoPaymentConfigKey] = string(raw)
@@ -340,16 +344,19 @@ func TestCryptoCheckoutOwnershipAndValidation(t *testing.T) {
 	router.POST("/pay", RequestCryptoPay)
 	router.GET("/orders/:trade_no", GetCryptoOrder)
 	router.GET("/config", GetCryptoPaymentConfig)
+	router.PUT("/config", SaveCryptoPaymentConfig)
 	router.GET("/options", GetOptions)
 	router.PUT("/options", UpdateOption)
 	response := httptest.NewRecorder()
-	router.ServeHTTP(response, httptest.NewRequest(http.MethodPost, "/pay", strings.NewReader(`{"amount":10}`)))
+	router.ServeHTTP(response, httptest.NewRequest(http.MethodPost, "/pay", strings.NewReader(`{"amount":10,"network":"tron"}`)))
 	var checkout struct {
 		Success bool   `json:"success"`
 		Message string `json:"message"`
 		Data    struct {
 			TradeNo string `json:"trade_no"`
 			Amount  string `json:"amount"`
+			Network string `json:"network"`
+			Address string `json:"address"`
 		} `json:"data"`
 	}
 	require.NoError(t, common.Unmarshal(response.Body.Bytes(), &checkout))
@@ -362,6 +369,7 @@ func TestCryptoCheckoutOwnershipAndValidation(t *testing.T) {
 		response = httptest.NewRecorder()
 		router.ServeHTTP(response, httptest.NewRequest(http.MethodGet, path, nil))
 		assert.NotContains(t, response.Body.String(), cfg.TRONAPIKey, "query credentials must never be returned")
+		assert.NotContains(t, response.Body.String(), cfg.BSCRPCURL, "RPC credentials must never be returned")
 	}
 	response = httptest.NewRecorder()
 	router.ServeHTTP(response, httptest.NewRequest(http.MethodPut, "/options", strings.NewReader(`{"key":"CryptoPaymentConfig","value":"{}"}`)))
@@ -372,18 +380,288 @@ func TestCryptoCheckoutOwnershipAndValidation(t *testing.T) {
 	router.ServeHTTP(response, httptest.NewRequest(http.MethodGet, "/orders/"+order.TradeNo, nil))
 	assert.Equal(t, http.StatusNotFound, response.Code)
 	user.Id--
-	for _, body := range []string{`{"amount":0}`, `{"amount":-1}`, `{"amount":9223372036854775807}`} {
+	for _, body := range []string{`{"amount":0,"network":"tron"}`, `{"amount":-1,"network":"tron"}`, `{"amount":9223372036854775807,"network":"tron"}`, `{"amount":10}`, `{"amount":10,"network":"bsc"}`} {
 		response = httptest.NewRecorder()
 		router.ServeHTTP(response, httptest.NewRequest(http.MethodPost, "/pay", strings.NewReader(body)))
 		require.NoError(t, common.Unmarshal(response.Body.Bytes(), &checkout))
 		assert.False(t, checkout.Success, body)
 	}
+	require.NoError(t, db.AutoMigrate(&model.Option{}))
+	saveCfg := cfg
+	saveCfg.BSCEnabled = true
+	saveCfg.TRONAPIKey, saveCfg.BSCRPCURL = "", ""
+	saveCfg.BSCAddress = "0x55D398326F99059FF775485246999027B3197955"
+	raw, err = common.Marshal(saveCfg)
+	require.NoError(t, err)
+	response = httptest.NewRecorder()
+	router.ServeHTTP(response, httptest.NewRequest(http.MethodPut, "/config", strings.NewReader(string(raw))))
+	require.NoError(t, common.Unmarshal(response.Body.Bytes(), &checkout))
+	require.True(t, checkout.Success, response.Body.String())
+	stored, err := setting.GetCryptoPaymentConfig()
+	require.NoError(t, err)
+	assert.Equal(t, cfg.TRONAPIKey, stored.TRONAPIKey)
+	assert.Equal(t, cfg.BSCRPCURL, stored.BSCRPCURL)
+	assert.Equal(t, cryptopay.BSCUSDTContract, stored.BSCAddress)
+	response = httptest.NewRecorder()
+	router.ServeHTTP(response, httptest.NewRequest(http.MethodPost, "/pay", strings.NewReader(`{"amount":10,"network":"bsc"}`)))
+	require.NoError(t, common.Unmarshal(response.Body.Bytes(), &checkout))
+	require.True(t, checkout.Success, response.Body.String())
+	assert.Equal(t, "bsc", checkout.Data.Network)
+	assert.Equal(t, cryptopay.BSCUSDTContract, checkout.Data.Address)
+	assert.Equal(t, "10.000001", checkout.Data.Amount, "each network reserves its own amounts")
+	bscTradeNo := checkout.Data.TradeNo
+	stored.BSCEnabled = false
+	raw, err = common.Marshal(stored)
+	require.NoError(t, err)
+	common.OptionMap[setting.CryptoPaymentConfigKey] = string(raw)
+	response = httptest.NewRecorder()
+	router.ServeHTTP(response, httptest.NewRequest(http.MethodGet, "/orders/"+bscTradeNo, nil))
+	require.NoError(t, common.Unmarshal(response.Body.Bytes(), &checkout))
+	assert.True(t, checkout.Success, "disabling new BSC orders preserves existing checkout details")
+	assert.Equal(t, "bsc", checkout.Data.Network)
 	cfg.Enabled = false
 	raw, err = common.Marshal(cfg)
 	require.NoError(t, err)
 	common.OptionMap[setting.CryptoPaymentConfigKey] = string(raw)
 	response = httptest.NewRecorder()
-	router.ServeHTTP(response, httptest.NewRequest(http.MethodPost, "/pay", strings.NewReader(`{"amount":10}`)))
+	router.ServeHTTP(response, httptest.NewRequest(http.MethodPost, "/pay", strings.NewReader(`{"amount":10,"network":"tron"}`)))
 	require.NoError(t, common.Unmarshal(response.Body.Bytes(), &checkout))
 	assert.False(t, checkout.Success)
+}
+
+func TestCryptoBSCPaymentPrecision(t *testing.T) {
+	for _, dialect := range []string{"sqlite", "mysql", "postgres"} {
+		t.Run(dialect, func(t *testing.T) {
+			db := cryptoPaymentTestDB(t, dialect)
+			require.NoError(t, db.AutoMigrate(&model.User{}, &model.TopUp{}, &model.Log{}, &model.CryptoWallet{}, &model.CryptoPaymentOrder{}, &model.CryptoTransfer{}))
+			// Reproduce the previously deployed transfer schema, then migrate twice.
+			require.NoError(t, db.Migrator().DropColumn(&model.CryptoTransfer{}, "RawAmount"))
+			legacy := map[string]any{"network": "tron", "asset": "usdt", "transaction_id": "legacy-tron", "event_index": 0, "address": cryptopay.TRONUSDTContract, "amount_units": 10000001, "block_timestamp": int64(1700000000000)}
+			require.NoError(t, db.Table("crypto_test_crypto_transfers").Create(legacy).Error)
+			for range 2 {
+				require.NoError(t, db.AutoMigrate(&model.CryptoTransfer{}))
+			}
+			var preserved model.CryptoTransfer
+			require.NoError(t, db.Where("transaction_id = ?", "legacy-tron").First(&preserved).Error)
+			assert.EqualValues(t, 10000001, preserved.AmountUnits)
+			assert.Empty(t, preserved.RawAmount)
+			user := model.User{Username: "bsc-user", Status: common.UserStatusEnabled}
+			require.NoError(t, db.Create(&user).Error)
+			wallet, err := model.EnsureCryptoWallet(cryptopay.BSC, cryptopay.USDT, cryptopay.BSCUSDTContract)
+			require.NoError(t, err)
+			tron, err := model.EnsureCryptoWallet(cryptopay.TRON, cryptopay.USDT, cryptopay.TRONUSDTContract)
+			require.NoError(t, err)
+			order, err := model.CreateCryptoPaymentOrder(wallet.ID, &model.TopUp{TradeNo: "bsc-order", UserId: user.Id, PaymentProvider: model.PaymentProviderCrypto, Status: common.TopUpStatusPending}, 500, 10000000, 30)
+			require.NoError(t, err)
+			tronOrder, err := model.CreateCryptoPaymentOrder(tron.ID, &model.TopUp{TradeNo: "tron-order", UserId: user.Id, PaymentProvider: model.PaymentProviderCrypto, Status: common.TopUpStatusPending}, 500, 10000000, 30)
+			require.NoError(t, err)
+			assert.Equal(t, order.AmountUnits, tronOrder.AmountUnits)
+			dust := cryptopay.Transfer{Network: cryptopay.BSC, Asset: cryptopay.USDT, Address: wallet.Address, TransactionID: "0x" + strings.Repeat("a", 64), RawAmount: "10000001000000000001", Timestamp: order.CreatedAt + 1}
+			receipt, inserted, err := model.RecordCryptoTransfer(dust)
+			require.NoError(t, err)
+			assert.True(t, inserted)
+			credited, err := model.SettleCryptoTransfer(receipt.ID, "", "")
+			require.NoError(t, err)
+			assert.False(t, credited)
+			require.NoError(t, db.First(receipt, receipt.ID).Error)
+			assert.Equal(t, "unmatched_amount", receipt.ReviewReason)
+			assert.Equal(t, dust.RawAmount, receipt.RawAmount)
+			_, err = model.SettleCryptoTransfer(receipt.ID, tronOrder.TradeNo, "admin")
+			require.Error(t, err, "manual reconciliation must not cross networks")
+			exact := dust
+			exact.EventIndex = 1
+			exact.Amount = 10000001
+			exact.RawAmount = "10000001000000000000"
+			exactReceipt, _, err := model.RecordCryptoTransfer(exact)
+			require.NoError(t, err)
+			for range 2 {
+				credited, err = model.SettleCryptoTransfer(exactReceipt.ID, "", "")
+				require.NoError(t, err)
+			}
+			require.NoError(t, db.First(&user, user.Id).Error)
+			assert.Equal(t, 500, user.Quota)
+			var unpaid model.TopUp
+			require.NoError(t, db.Where("trade_no = ?", tronOrder.TradeNo).First(&unpaid).Error)
+			assert.Equal(t, common.TopUpStatusPending, unpaid.Status)
+			replay, inserted, err := model.RecordCryptoTransfer(exact)
+			require.NoError(t, err)
+			assert.False(t, inserted)
+			assert.Equal(t, exactReceipt.ID, replay.ID)
+			exact.RawAmount = "10000001000000000001"
+			exact.Amount = 0
+			_, _, err = model.RecordCryptoTransfer(exact)
+			require.ErrorContains(t, err, "conflicting")
+		})
+	}
+}
+
+func TestCryptoBSCFinalizedScanner(t *testing.T) {
+	const base = int64(1700000000000)
+	address := cryptopay.BSCUSDTContract
+	hash := "0x" + strings.Repeat("a", 64)
+	chain := "0x38"
+	badHash := false
+	invalidLog := ""
+	client := &http.Client{Transport: cryptoTestTransport(func(request *http.Request) (*http.Response, error) {
+		var call struct {
+			ID     int                 `json:"id"`
+			Method string              `json:"method"`
+			Params []common.RawMessage `json:"params"`
+		}
+		require.NoError(t, common.DecodeJson(request.Body, &call))
+		var result any
+		switch call.Method {
+		case "eth_chainId":
+			result = chain
+		case "eth_getBlockByNumber":
+			var tag string
+			require.NoError(t, common.Unmarshal(call.Params[0], &tag))
+			number := int64(1003)
+			if tag != "finalized" {
+				var err error
+				number, err = strconv.ParseInt(strings.TrimPrefix(tag, "0x"), 16, 64)
+				require.NoError(t, err)
+			}
+			result = map[string]any{"number": fmt.Sprintf("0x%x", number), "timestamp": fmt.Sprintf("0x%x", base/1000+number/2), "hash": hash}
+		case "eth_getLogs":
+			var filter struct {
+				From    string `json:"fromBlock"`
+				To      string `json:"toBlock"`
+				Address string `json:"address"`
+				Topics  []any  `json:"topics"`
+			}
+			require.NoError(t, common.Unmarshal(call.Params[0], &filter))
+			assert.Equal(t, cryptopay.BSCUSDTContract, filter.Address)
+			logs := []any{}
+			if filter.From == "0x3e8" {
+				for index, raw := range []string{"10000001000000000001", "10000001000000000000"} {
+					value, ok := new(big.Int).SetString(raw, 10)
+					require.True(t, ok)
+					blockHash := hash
+					if badHash {
+						blockHash = "0x" + strings.Repeat("b", 64)
+					}
+					logs = append(logs, map[string]any{"address": address, "topics": []string{"0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef", "0x" + strings.Repeat("0", 64), "0x" + strings.Repeat("0", 24) + address[2:]}, "data": fmt.Sprintf("0x%064x", value), "transactionHash": hash, "blockNumber": fmt.Sprintf("0x%x", 1000+index), "blockHash": blockHash, "logIndex": fmt.Sprintf("0x%x", index)})
+				}
+			}
+			if len(logs) > 0 {
+				item := logs[0].(map[string]any)
+				switch invalidLog {
+				case "contract":
+					item["address"] = "0x" + strings.Repeat("b", 40)
+				case "recipient":
+					item["topics"].([]string)[2] = "0x" + strings.Repeat("0", 64)
+				case "removed":
+					item["removed"] = true
+				case "amount":
+					item["data"] = "0x1"
+				case "block":
+					item["blockNumber"] = "0x3e7"
+				}
+			}
+			result = logs
+		default:
+			t.Fatalf("unexpected RPC method %s", call.Method)
+		}
+		body, err := common.Marshal(map[string]any{"jsonrpc": "2.0", "id": call.ID, "result": result})
+		require.NoError(t, err)
+		return &http.Response{StatusCode: 200, Body: io.NopCloser(bytes.NewReader(body))}, nil
+	})}
+	scanner := cryptopay.BSCScanner{URL: "https://rpc.example.test/secret", Client: client}
+	page, err := scanner.Scan(context.Background(), address, base, base+500000, "")
+	require.NoError(t, err)
+	assert.Empty(t, page.Transfers)
+	assert.Equal(t, "1000", page.Next)
+	page, err = scanner.Scan(context.Background(), address, base, base+500000, page.Next)
+	require.NoError(t, err)
+	require.Len(t, page.Transfers, 2)
+	assert.Empty(t, page.Next)
+	assert.EqualValues(t, 0, page.Transfers[0].Amount)
+	assert.Equal(t, "10000001000000000001", page.Transfers[0].RawAmount)
+	assert.EqualValues(t, 10000001, page.Transfers[1].Amount)
+	assert.EqualValues(t, base+500000, page.Transfers[1].Timestamp, "blocks sharing the window's final timestamp must both be included")
+	for _, name := range []string{"contract", "recipient", "removed", "amount", "block"} {
+		t.Run("reject_"+name, func(t *testing.T) {
+			invalidLog = name
+			_, err := scanner.Scan(context.Background(), address, base, base+500000, "1000")
+			require.Error(t, err)
+		})
+	}
+	invalidLog = ""
+	_, err = scanner.Scan(context.Background(), address, base, base+500000, "not-a-block")
+	require.ErrorContains(t, err, "cursor")
+	badHash = true
+	_, err = scanner.Scan(context.Background(), address, base, base+500000, "1000")
+	require.ErrorContains(t, err, "hash mismatch")
+	badHash = false
+	chain = "0x1"
+	_, err = scanner.Scan(context.Background(), address, base, base+500000, "")
+	require.ErrorContains(t, err, "chain ID 56")
+	chain = "0x38"
+	_, err = scanner.Scan(context.Background(), address, base, base+502000, "")
+	require.ErrorContains(t, err, "finalized head")
+}
+
+func TestCryptoBSCScanRecoveryAndNetworkIsolation(t *testing.T) {
+	db := cryptoPaymentTestDB(t, "sqlite")
+	require.NoError(t, db.AutoMigrate(&model.User{}, &model.TopUp{}, &model.Log{}, &model.CryptoWallet{}, &model.CryptoPaymentOrder{}, &model.CryptoTransfer{}))
+	user := model.User{Username: "scan-user", Status: common.UserStatusEnabled}
+	require.NoError(t, db.Create(&user).Error)
+	tron, err := model.EnsureCryptoWallet(cryptopay.TRON, cryptopay.USDT, cryptopay.TRONUSDTContract)
+	require.NoError(t, err)
+	bsc, err := model.EnsureCryptoWallet(cryptopay.BSC, cryptopay.USDT, cryptopay.BSCUSDTContract)
+	require.NoError(t, err)
+	for _, wallet := range []*model.CryptoWallet{tron, bsc} {
+		require.NoError(t, db.Model(wallet).Update("created_at", time.Now().Add(-time.Hour).UnixMilli()).Error)
+	}
+	order, err := model.CreateCryptoPaymentOrder(bsc.ID, &model.TopUp{TradeNo: "scan-bsc", UserId: user.Id, PaymentProvider: model.PaymentProviderCrypto, Status: common.TopUpStatusPending}, 500, 10000000, 30)
+	require.NoError(t, err)
+	require.NoError(t, db.Model(order).Update("created_at", time.Now().Add(-5*time.Minute).UnixMilli()).Error)
+	transfer := cryptopay.Transfer{Network: cryptopay.BSC, Asset: cryptopay.USDT, Address: bsc.Address, TransactionID: "0x" + strings.Repeat("d", 64), Timestamp: time.Now().Add(-4 * time.Minute).UnixMilli(), RawAmount: "10000001000000000001"}
+	exact := transfer
+	exact.EventIndex = 1
+	exact.Amount = 10000001
+	exact.RawAmount = "10000001000000000000"
+	tronScanner := &cryptoTestScanner{failSecond: true}
+	bscScanner := &cryptoTestScanner{failSecond: true, transfers: []cryptopay.Transfer{transfer, exact}}
+	scanners := map[string]cryptopay.Scanner{cryptopay.TRON: tronScanner, cryptopay.BSC: bscScanner}
+	_, err = service.ScanCryptoPaymentsOnce(context.Background(), scanners)
+	require.ErrorContains(t, err, "unavailable")
+	require.NoError(t, db.First(bsc, bsc.ID).Error)
+	assert.Equal(t, "second-page", bsc.ScanCursor)
+	bscScanner.failSecond = false
+	count, err := service.ScanCryptoPaymentsOnce(context.Background(), scanners)
+	require.ErrorContains(t, err, "unavailable", "TRON still fails independently")
+	assert.Equal(t, 2, count, "an unmatched precision must not prevent the next transfer from settling")
+	require.NoError(t, db.First(&user, user.Id).Error)
+	assert.Equal(t, 500, user.Quota)
+	require.NoError(t, db.First(bsc, bsc.ID).Error)
+	assert.Empty(t, bsc.ScanCursor)
+	assert.Positive(t, bsc.ScannedThrough)
+	assert.Equal(t, []string{"", "second-page", "second-page"}, bscScanner.calls)
+}
+
+func TestCryptoBSCAmountValidation(t *testing.T) {
+	for _, tc := range []struct {
+		raw     string
+		micro   int64
+		invalid bool
+	}{
+		{"10000001000000000000", 10000001, false},
+		{"10000001000000000001", 0, false},
+		{"1", 0, false},
+		{"115792089237316195423570985008687907853269984665640564039457584007913129639935", 0, false},
+		{"0", 0, true}, {"-1", 0, true}, {"01", 0, true}, {"1e18", 0, true},
+		{"115792089237316195423570985008687907853269984665640564039457584007913129639936", 0, true},
+	} {
+		t.Run(tc.raw, func(t *testing.T) {
+			value, err := cryptopay.BSCMicroAmount(tc.raw)
+			if tc.invalid {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+				assert.Equal(t, tc.micro, value)
+			}
+		})
+	}
 }

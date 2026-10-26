@@ -30,6 +30,7 @@ import { getCryptoOrder, requestCryptoPayment } from './api'
 import { AffiliateRewardsCard } from './components/affiliate-rewards-card'
 import { BillingHistoryDialog } from './components/dialogs/billing-history-dialog'
 import { CreemConfirmDialog } from './components/dialogs/creem-confirm-dialog'
+import { CryptoNetworkDialog } from './components/dialogs/crypto-network-dialog'
 import { CryptoPaymentDialog } from './components/dialogs/crypto-payment-dialog'
 import { PaymentConfirmDialog } from './components/dialogs/payment-confirm-dialog'
 import { TransferDialog } from './components/dialogs/transfer-dialog'
@@ -58,6 +59,7 @@ import type {
   CreemProduct,
   WaffoPayMethod,
   CryptoPaymentOrder,
+  CryptoNetwork,
 } from './types'
 
 interface WalletProps {
@@ -80,15 +82,20 @@ export function Wallet(props: WalletProps) {
   const [cryptoOrder, setCryptoOrder] = useState<CryptoPaymentOrder | null>(
     null
   )
+  const [cryptoNetworkOpen, setCryptoNetworkOpen] = useState(false)
   const [cryptoDialogOpen, setCryptoDialogOpen] = useState(false)
   const cryptoPayment = useMutation({
-    mutationFn: async (amount: number) => {
-      const response = await requestCryptoPayment(amount)
+    mutationFn: async (request: { amount: number; network: CryptoNetwork }) => {
+      const response = await requestCryptoPayment(
+        request.amount,
+        request.network
+      )
       requireServerSuccess(response)
       if (!response.data) throw new Error('Missing crypto order')
       return response.data
     },
     onSuccess: (order) => {
+      setCryptoNetworkOpen(false)
       setCryptoOrder(order)
       setCryptoDialogOpen(true)
     },
@@ -101,6 +108,7 @@ export function Wallet(props: WalletProps) {
       return response.data
     },
     onSuccess: (order) => {
+      setCryptoNetworkOpen(false)
       setCryptoOrder(order)
       setCryptoDialogOpen(true)
     },
@@ -216,7 +224,7 @@ export function Wallet(props: WalletProps) {
       }
 
       if (method.type === 'crypto') {
-        cryptoPayment.mutate(topupAmount)
+        setCryptoNetworkOpen(true)
         return
       }
 
@@ -419,6 +427,17 @@ export function Wallet(props: WalletProps) {
         currentUserID={user?.id}
         onCryptoOrderSelect={(tradeNo) => resumeCryptoPayment.mutate(tradeNo)}
       />
+
+      {cryptoNetworkOpen && (
+        <CryptoNetworkDialog
+          networks={topupInfo?.crypto_networks ?? []}
+          processing={cryptoPayment.isPending}
+          onOpenChange={setCryptoNetworkOpen}
+          onConfirm={(network) =>
+            cryptoPayment.mutate({ amount: topupAmount, network })
+          }
+        />
+      )}
 
       <CryptoPaymentDialog
         order={cryptoOrder}

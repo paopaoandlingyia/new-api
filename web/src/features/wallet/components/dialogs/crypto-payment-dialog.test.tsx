@@ -65,6 +65,22 @@ describe('crypto payment instructions', () => {
     expect(screen.getByText(/withdrawal fees are separate/)).toBeVisible()
   })
 
+  test('shows the BSC network fixed by the order', async () => {
+    const bsc = {
+      ...order,
+      trade_no: 'bsc-order',
+      network: 'bsc' as const,
+      address: '0x55d398326f99059ff775485246999027b3197955',
+    }
+    vi.mocked(getCryptoOrder).mockResolvedValue({ success: true, data: bsc })
+    renderOrder(bsc)
+    expect(
+      await screen.findByText('Network: BNB Smart Chain (BEP-20)')
+    ).toBeVisible()
+    expect(screen.getByText(/must support six decimal places/)).toBeVisible()
+    expect(screen.queryByRole('radio')).not.toBeInTheDocument()
+  })
+
   test('removes payment controls for an expired order', async () => {
     const expired = { ...order, status: 'expired' as const }
     vi.mocked(getCryptoOrder).mockResolvedValue({

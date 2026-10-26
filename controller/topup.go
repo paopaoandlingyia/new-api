@@ -71,7 +71,7 @@ func GetTopUpInfo(c *gin.Context) {
 			}
 			cryptoMinTopup = int64(minimum)
 		}
-		payMethods = append(payMethods, map[string]string{"name": "USDT (TRC20)", "type": model.PaymentProviderCrypto, "min_topup": strconv.FormatInt(cryptoMinTopup, 10)})
+		payMethods = append(payMethods, map[string]string{"name": "USDT", "type": model.PaymentProviderCrypto, "min_topup": strconv.FormatInt(cryptoMinTopup, 10)})
 	}
 	// Waffo Pancake is displayed above the standard Waffo gateway.
 	enableWaffoPancake := isWaffoPancakeTopUpEnabled()
@@ -118,6 +118,7 @@ func GetTopUpInfo(c *gin.Context) {
 
 	data := gin.H{
 		"enable_crypto_topup":              enableCrypto,
+		"crypto_networks":                  cfg.Networks(),
 		"crypto_min_topup":                 cryptoMinTopup,
 		"enable_online_topup":              isEpayTopUpEnabled(),
 		"enable_stripe_topup":              isStripeTopUpEnabled(),

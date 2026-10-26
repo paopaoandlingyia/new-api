@@ -34,6 +34,7 @@ import type {
   BillingHistoryResponse,
   CompleteOrderRequest,
   CryptoPaymentOrder,
+  CryptoNetwork,
   CreemPaymentRequest,
   CreemPaymentResponse,
   WaffoPaymentRequest,
@@ -249,9 +250,10 @@ export async function completeOrder(
 }
 
 export async function requestCryptoPayment(
-  amount: number
+  amount: number,
+  network: CryptoNetwork
 ): Promise<ApiResponse<CryptoPaymentOrder>> {
-  const response = await api.post('/api/user/crypto/pay', { amount })
+  const response = await api.post('/api/user/crypto/pay', { amount, network })
   return response.data
 }
 
