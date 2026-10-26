@@ -20,7 +20,6 @@ import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Dialog } from '@/components/dialog'
-import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
@@ -83,13 +82,6 @@ export function CryptoNetworkDialog(props: Props) {
       {props.networks.length === 0 && (
         <p role='status'>{t('No USDT payment networks are available')}</p>
       )}
-      <Alert>
-        <AlertDescription>
-          {t(
-            'Your payment service must support six decimal places. Check the amount received after withdrawal fees. Do not round the amount or use withdraw all.'
-          )}
-        </AlertDescription>
-      </Alert>
     </Dialog>
   )
 }

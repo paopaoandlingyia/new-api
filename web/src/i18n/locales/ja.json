@@ -7492,7 +7492,6 @@
     "Your GitHub OAuth Client Secret": "あなたのGitHub OAuthクライアントシークレット",
     "Your identity has been verified. Continue to the provider to finish linking your account.": "本人確認が完了しました。連携先でアカウント連携を完了してください。",
     "Your new backup codes are ready": "新しいバックアップコードの準備ができました",
-    "Your payment service must support six decimal places. Check the amount received after withdrawal fees. Do not round the amount or use withdraw all.": "送金サービスは小数点以下6桁に対応している必要があります。出金手数料を引いた受取額を確認し、丸めや全額出金は使用しないでください。",
     "Your Referral Link": "あなたの紹介リンク",
     "Your setup guide is collapsed so usage stays in focus.": "利用状況に集中できるよう、セットアップガイドを折りたたみました。",
     "Your Telegram Bot Token": "あなたのTelegramボットトークン",

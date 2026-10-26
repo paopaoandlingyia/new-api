@@ -154,15 +154,6 @@ export function CryptoPaymentDialog(props: Props) {
             </AlertDescription>
           </Alert>
         )}
-        {pending && (
-          <Alert>
-            <AlertDescription>
-              {t(
-                'Your payment service must support six decimal places. Check the amount received after withdrawal fees. Do not round the amount or use withdraw all.'
-              )}
-            </AlertDescription>
-          </Alert>
-        )}
         {query.isError && (
           <Button variant='outline' onClick={() => void query.refetch()}>
             {t('Retry')}

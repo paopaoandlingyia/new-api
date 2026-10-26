@@ -77,7 +77,9 @@ describe('crypto payment instructions', () => {
     expect(
       await screen.findByText('Network: BNB Smart Chain (BEP-20)')
     ).toBeVisible()
-    expect(screen.getByText(/must support six decimal places/)).toBeVisible()
+    expect(
+      screen.queryByText(/must support six decimal places/)
+    ).not.toBeInTheDocument()
     expect(screen.queryByRole('radio')).not.toBeInTheDocument()
   })
 

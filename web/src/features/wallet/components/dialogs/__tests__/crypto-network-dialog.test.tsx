@@ -35,6 +35,9 @@ test('requires explicit network selection before creating a payment order', asyn
   )
   const create = screen.getByRole('button', { name: 'Create payment order' })
   expect(create).toBeDisabled()
+  expect(
+    screen.queryByText(/must support six decimal places/)
+  ).not.toBeInTheDocument()
   await user.click(screen.getByRole('radio', { name: 'TRON (TRC20)' }))
   await user.keyboard('{ArrowDown}')
   expect(
