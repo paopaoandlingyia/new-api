@@ -18,13 +18,14 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { useQuery } from '@tanstack/react-query'
 import { QRCodeSVG } from 'qrcode.react'
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { CopyButton } from '@/components/copy-button'
 import { Dialog } from '@/components/dialog'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
+import { formatTimestampToDate } from '@/lib/format'
 import { requireServerSuccess } from '@/lib/server-error-message'
 
 import { getCryptoOrder } from '../../api'
@@ -41,6 +42,7 @@ export function CryptoPaymentDialog(props: Props) {
   const { t } = useTranslation()
   const tradeNo = props.order?.trade_no ?? ''
   const notifiedOrder = useRef('')
+  const [now, setNow] = useState(Date.now)
   const query = useQuery({
     queryKey: ['crypto-order', tradeNo],
     queryFn: async () => {
@@ -66,8 +68,19 @@ export function CryptoPaymentDialog(props: Props) {
     }
   }, [order?.status, order?.trade_no, onPaid])
 
+  useEffect(() => {
+    if (!props.open || order?.status !== 'pending') return
+    // Recompute from the absolute deadline so background tab throttling cannot
+    // extend the displayed payment window. Expiry remains server-authoritative.
+    setNow(Date.now())
+    const timer = window.setInterval(() => setNow(Date.now()), 1000)
+    return () => window.clearInterval(timer)
+  }, [props.open, order?.trade_no, order?.status])
+
   if (!order) return null
   const pending = order.status === 'pending'
+  const remaining = Math.max(0, Math.ceil((order.expires_at - now) / 1000))
+  const remainingTime = `${Math.floor(remaining / 60)}:${String(remaining % 60).padStart(2, '0')}`
 
   return (
     <Dialog
@@ -94,6 +107,17 @@ export function CryptoPaymentDialog(props: Props) {
             )}
           {pending && t('Waiting for confirmed payment')}
         </div>
+        {pending && (
+          <p className='text-muted-foreground text-sm'>
+            {order.network === 'bsc'
+              ? t(
+                  'Usually credited within about 1 minute after payment. Network confirmation may take longer.'
+                )
+              : t(
+                  'Usually credited within 2–3 minutes after payment. Network confirmation may take longer.'
+                )}
+          </p>
+        )}
         {pending && (
           <div className='flex justify-center'>
             <QRCodeSVG
@@ -149,8 +173,14 @@ export function CryptoPaymentDialog(props: Props) {
             <AlertDescription>
               {t(
                 'Pay before {{time}}. The identifying suffix is below 0.01 USDT and does not increase your credit. Ensure the amount received matches exactly; withdrawal fees are separate.',
-                { time: new Date(order.expires_at).toISOString() }
+                {
+                  time: formatTimestampToDate(order.expires_at, 'milliseconds'),
+                }
               )}
+              <span>{t('Times are shown in your local timezone.')}</span>
+              <span className='tabular-nums'>
+                {t('Time remaining')}: {remainingTime}
+              </span>
             </AlertDescription>
           </Alert>
         )}

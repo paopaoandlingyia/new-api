@@ -195,9 +195,11 @@ func (s BSCScanner) Scan(ctx context.Context, address string, start, end int64, 
 	if head == int64(^uint64(0)>>1) {
 		return Page{}, fmt.Errorf("invalid BSC head number")
 	}
-	if headTime < end {
+	if headTime < start {
 		return Page{}, fmt.Errorf("BSC finalized head has not reached scan window")
 	}
+	// Cap the window at finality rather than waiting for wall-clock time to finalize.
+	end = min(end, headTime)
 	// Lower bound includes all blocks with the same timestamp.
 	low, high := int64(0), head+1
 	for low < high {
@@ -221,7 +223,7 @@ func (s BSCScanner) Scan(ctx context.Context, address string, start, end int64, 
 		from = next
 	}
 	if from > head {
-		return Page{}, nil
+		return Page{CompleteThrough: end}, nil
 	}
 	to := min(from+999, head)
 	var logs []struct {
@@ -239,7 +241,7 @@ func (s BSCScanner) Scan(ctx context.Context, address string, start, end int64, 
 	if err := s.rpc(ctx, "eth_getLogs", []any{filter}, &logs); err != nil {
 		return Page{}, err
 	}
-	page := Page{}
+	page := Page{CompleteThrough: end}
 	blocks := make(map[int64]bscBlock)
 	timestamps := make(map[int64]int64)
 	for _, log := range logs {

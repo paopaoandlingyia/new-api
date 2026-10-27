@@ -58,7 +58,10 @@ func scanCryptoWallet(ctx context.Context, wallet model.CryptoWallet, scanner cr
 		if wallet.Network == cryptopay.TRON && wallet.LastFullScan < now-24*60*60000 {
 			wallet.ScanFrom = wallet.CreatedAt - 60000
 		}
-		wallet.ScanTo = now - 120000
+		wallet.ScanTo = now
+		if wallet.Network == cryptopay.TRON {
+			wallet.ScanTo -= 120000
+		}
 		if wallet.ScanTo < wallet.ScanFrom {
 			return processed, nil
 		}
@@ -105,7 +108,16 @@ func scanCryptoWallet(ctx context.Context, wallet model.CryptoWallet, scanner cr
 			}
 			continue
 		}
-		updates := map[string]any{"scanned_through": wallet.ScanTo, "scan_to": 0, "scan_cursor": ""}
+		scannedThrough := wallet.ScanTo
+		if wallet.Network == cryptopay.BSC {
+			// A lagging finalized head must never advance the checkpoint past data
+			// actually queried; the next window replays the boundary with overlap.
+			if page.CompleteThrough < wallet.ScanFrom || page.CompleteThrough > wallet.ScanTo {
+				return processed, fmt.Errorf("invalid BSC finalized scan checkpoint")
+			}
+			scannedThrough = page.CompleteThrough
+		}
+		updates := map[string]any{"scanned_through": scannedThrough, "scan_to": 0, "scan_cursor": ""}
 		if wallet.ScanFrom <= wallet.CreatedAt-60000 {
 			updates["last_full_scan"] = now
 		}

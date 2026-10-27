@@ -42,6 +42,8 @@ type Transfer struct {
 type Page struct {
 	Transfers []Transfer
 	Next      string
+	// CompleteThrough is the finalized timestamp covered when a BSC page has no Next.
+	CompleteThrough int64
 }
 
 type Scanner interface {

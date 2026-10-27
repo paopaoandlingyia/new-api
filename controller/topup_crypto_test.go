@@ -270,12 +270,13 @@ func TestCryptoTRONReceiptVerification(t *testing.T) {
 }
 
 type cryptoTestScanner struct {
-	calls      []string
-	failSecond bool
-	transfers  []cryptopay.Transfer
+	calls            []string
+	failSecond       bool
+	transfers        []cryptopay.Transfer
+	finalizedThrough int64
 }
 
-func (scanner *cryptoTestScanner) Scan(_ context.Context, _ string, _, _ int64, cursor string) (cryptopay.Page, error) {
+func (scanner *cryptoTestScanner) Scan(_ context.Context, _ string, _, end int64, cursor string) (cryptopay.Page, error) {
 	scanner.calls = append(scanner.calls, cursor)
 	if cursor == "" {
 		return cryptopay.Page{Next: "second-page"}, nil
@@ -283,7 +284,10 @@ func (scanner *cryptoTestScanner) Scan(_ context.Context, _ string, _, _ int64, 
 	if scanner.failSecond {
 		return cryptopay.Page{}, fmt.Errorf("query service unavailable")
 	}
-	return cryptopay.Page{Transfers: scanner.transfers}, nil
+	if scanner.finalizedThrough != 0 {
+		end = min(end, scanner.finalizedThrough)
+	}
+	return cryptopay.Page{Transfers: scanner.transfers, CompleteThrough: end}, nil
 }
 
 func TestCryptoScanResumesAfterFailure(t *testing.T) {
@@ -598,7 +602,11 @@ func TestCryptoBSCFinalizedScanner(t *testing.T) {
 	_, err = scanner.Scan(context.Background(), address, base, base+500000, "")
 	require.ErrorContains(t, err, "chain ID 56")
 	chain = "0x38"
-	_, err = scanner.Scan(context.Background(), address, base, base+502000, "")
+	page, err = scanner.Scan(context.Background(), address, base+500000, base+502000, "")
+	require.NoError(t, err, "recent finalized payments must not wait for the requested wall-clock end")
+	require.Len(t, page.Transfers, 2)
+	assert.Equal(t, base+501000, page.CompleteThrough, "checkpoint must stop at finality, not the requested end")
+	_, err = scanner.Scan(context.Background(), address, base+502000, base+503000, "")
 	require.ErrorContains(t, err, "finalized head")
 }
 
@@ -617,13 +625,14 @@ func TestCryptoBSCScanRecoveryAndNetworkIsolation(t *testing.T) {
 	order, err := model.CreateCryptoPaymentOrder(bsc.ID, &model.TopUp{TradeNo: "scan-bsc", UserId: user.Id, PaymentProvider: model.PaymentProviderCrypto, Status: common.TopUpStatusPending}, 500, 10000000, 30)
 	require.NoError(t, err)
 	require.NoError(t, db.Model(order).Update("created_at", time.Now().Add(-5*time.Minute).UnixMilli()).Error)
-	transfer := cryptopay.Transfer{Network: cryptopay.BSC, Asset: cryptopay.USDT, Address: bsc.Address, TransactionID: "0x" + strings.Repeat("d", 64), Timestamp: time.Now().Add(-4 * time.Minute).UnixMilli(), RawAmount: "10000001000000000001"}
+	transfer := cryptopay.Transfer{Network: cryptopay.BSC, Asset: cryptopay.USDT, Address: bsc.Address, TransactionID: "0x" + strings.Repeat("d", 64), Timestamp: time.Now().Add(-10 * time.Second).UnixMilli(), RawAmount: "10000001000000000001"}
 	exact := transfer
 	exact.EventIndex = 1
 	exact.Amount = 10000001
 	exact.RawAmount = "10000001000000000000"
 	tronScanner := &cryptoTestScanner{failSecond: true}
-	bscScanner := &cryptoTestScanner{failSecond: true, transfers: []cryptopay.Transfer{transfer, exact}}
+	finalizedThrough := time.Now().Add(-time.Second).UnixMilli()
+	bscScanner := &cryptoTestScanner{failSecond: true, transfers: []cryptopay.Transfer{transfer, exact}, finalizedThrough: finalizedThrough}
 	scanners := map[string]cryptopay.Scanner{cryptopay.TRON: tronScanner, cryptopay.BSC: bscScanner}
 	_, err = service.ScanCryptoPaymentsOnce(context.Background(), scanners)
 	require.ErrorContains(t, err, "unavailable")
@@ -637,7 +646,7 @@ func TestCryptoBSCScanRecoveryAndNetworkIsolation(t *testing.T) {
 	assert.Equal(t, 500, user.Quota)
 	require.NoError(t, db.First(bsc, bsc.ID).Error)
 	assert.Empty(t, bsc.ScanCursor)
-	assert.Positive(t, bsc.ScannedThrough)
+	assert.Equal(t, finalizedThrough, bsc.ScannedThrough, "persist only the finalized progress, not wall-clock time")
 	assert.Equal(t, []string{"", "second-page", "second-page"}, bscScanner.calls)
 }
 

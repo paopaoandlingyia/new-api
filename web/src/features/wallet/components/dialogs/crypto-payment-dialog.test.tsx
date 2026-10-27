@@ -17,8 +17,10 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { render, screen, waitFor } from '@testing-library/react'
+import { act, render, screen, waitFor } from '@testing-library/react'
 import { describe, expect, test, vi } from 'vitest'
+
+import { formatTimestampToDate } from '@/lib/format'
 
 import { getCryptoOrder } from '../../api'
 import type { CryptoPaymentOrder } from '../../types'
@@ -63,6 +65,16 @@ describe('crypto payment instructions', () => {
     ).toBeVisible()
     expect(screen.getByText('Network: TRON (TRC20)')).toBeVisible()
     expect(screen.getByText(/withdrawal fees are separate/)).toBeVisible()
+    expect(screen.getByText(/Pay before/)).toHaveTextContent(
+      formatTimestampToDate(order.expires_at, 'milliseconds')
+    )
+    expect(screen.getByText(/Pay before/).textContent).not.toContain(
+      new Date(order.expires_at).toISOString()
+    )
+    expect(
+      screen.getByText('Times are shown in your local timezone.')
+    ).toBeVisible()
+    expect(screen.getByText(/2–3 minutes/)).toBeVisible()
   })
 
   test('shows the BSC network fixed by the order', async () => {
@@ -81,6 +93,25 @@ describe('crypto payment instructions', () => {
       screen.queryByText(/must support six decimal places/)
     ).not.toBeInTheDocument()
     expect(screen.queryByRole('radio')).not.toBeInTheDocument()
+    expect(screen.getByText(/about 1 minute/)).toBeVisible()
+  })
+
+  test('counts down to the absolute deadline without declaring server-side expiry', () => {
+    vi.useFakeTimers({ toFake: ['Date', 'setInterval', 'clearInterval'] })
+    vi.setSystemTime(order.expires_at - 61_000)
+    vi.mocked(getCryptoOrder).mockResolvedValue({ success: true, data: order })
+    const view = renderOrder(order)
+    try {
+      expect(screen.getByText('Time remaining: 1:01')).toBeVisible()
+      act(() => {
+        vi.advanceTimersByTime(62_000)
+      })
+      expect(screen.getByText('Time remaining: 0:00')).toBeVisible()
+      expect(screen.getByText('Waiting for confirmed payment')).toBeVisible()
+    } finally {
+      view.unmount()
+      vi.useRealTimers()
+    }
   })
 
   test('removes payment controls for an expired order', async () => {
