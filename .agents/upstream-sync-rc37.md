@@ -1,5 +1,31 @@
 # new-api 上游同步与部署记录
 
+## 2026-11-05 rc.48 本地整合
+
+用户确认完整同步固定发布标签 `v1.0.0-rc.48`（`706144769`），范围为本地合并、验证和提交。合并前为 `5928cc9a4`；自动三方合并无冲突。保留 USDT TRC20/BEP-20 支付、客户分组展示隔离、Claude 独立 count_tokens 免计费/免性能采样、拒绝类别、管理员上游账号日志、条件错误日志、状态页、HTML no-store、构建元信息和个人镜像发布工作流。七种语言文件无丢键、无重复键。未推送、发布镜像或操作生产。
+
+采用上游缓存写入计费、协议转换、亲和重试、任务插件原生路径和定价提醒、Redis 鉴权缓存签名等改动。缓存签名绑定现有 `CryptoSecret`（取 `CRYPTO_SECRET`，未设置时取 `SESSION_SECRET`）；多节点必须使用一致密钥并一起升级。旧无签名缓存会回数据库重建。没有新增持久化列或更改数据库驱动；Token 的签名字段带 `gorm:"-"`。认证整合参考 OWASP ASVS **5.0.0**、[Authentication Cheat Sheet](https://cheatsheetseries.owasp.org/cheatsheets/Authentication_Cheat_Sheet.html) 和 [Session Management Cheat Sheet](https://cheatsheetseries.owasp.org/cheatsheets/Session_Management_Cheat_Sheet.html)，重点验证缓存身份/权限不可篡改、过期不可复用、撤销不可清除、数据库故障拒绝鉴权及修复缓存不覆盖预扣额度。不宣称全站 ASVS 合规。
+
+验证结果：
+
+- Go **1.26.10**：主模块 `GOWORK=off go build ./...` 通过；前端构建后再次构建通过。`relaykit/`、`tokenkit/` 各自执行 `GOWORK=off go build ./...` 和 `go test ./... -count=1 -timeout=180s`，均通过。
+- 根模块 `GOWORK=off go test -p 4 ./... -count=1 -timeout=180s`：46 个有测试的包通过，`router` 和 `relay/channel/advancedcustom` 失败。四项失败均在合并前完整源码快照复现：路由覆盖测试缺本站模型状态路由、两个缓存测试仍期待上游缓存策略、代理主机名夹具在本机得到 EOF。保留既有业务行为，未扩大范围修复。
+- Bun **1.4.4**：`bun install --frozen-lockfile`、`bun run typecheck`、`bun run build` 通过；39 个涉及的 TS/TSX 文件 oxlint、47 个涉及的前端源码/JSON 文件 oxfmt 检查通过。`bun run test` 共 **2498 项通过、1 项失败（212 文件）**，失败仍为 `model-listing.test.tsx` 期待“无法展示”，实际翻译为“不可用”；合并前同一文件复核为 24 通过、1 失败。
+- 九个涉及的任务插件与上游 rc.48 完全一致。插件 oxlint 有十处 warning 和一处 error：xAI 已存在的未使用 catch 参数 `_error`（合并前同样存在）；oxfmt 报 hailuo/kling/vidu/xai 四个上游文件的格式差异，未改写上游源码。人工检查新增 Vertex Omni 和 Kling 的计费用量说明，符合“计费对象 + 单价”的元数据约定。新增任务定价提示复用现有 toast/i18n 和界面组件，未增加本站 UI 封装。
+- 真实数据库：SQLite **3.50.4**、MySQL **8.0.46**、PostgreSQL **18.6**。模型层缓存完整性、渠道优先级、请求策略和迁移稳定性矩阵通过；控制器 USDT 支付、请求策略路由、价格转换、共享插件定价矩阵通过。渠道批量创建 ID/分块/事务回滚及即时任务结算另分别在 MySQL/PostgreSQL 上通过。迁移稳定性用例覆盖重复执行及已有数据/唯一约束保留；本次没有应用 schema 变更，未另做完整应用升级演练。ClickHouse 未验证。
+
+数据库验证命令（DSN 仅指向本机一次性容器，日志记录确切版本）：
+
+```sh
+# GOTOOLCHAIN=go1.26.10；TEST_MYSQL_DSN / TEST_POSTGRES_DSN 为隔离测试库
+GOWORK=off go test ./model -run 'Test(AuthCacheIntegrityDatabaseMatrix|ChannelPriorityDatabaseMatrix|RequestPolicyDatabaseMatrix|MigrationSchemaStability)' -count=1 -v -timeout=180s
+GOWORK=off go test ./controller -run 'Test(CryptoPaymentDatabaseMatrix|RequestPolicyRoutingDatabaseMatrix|ImmediateTaskSettlementDatabase|ModelPricingConversionDatabaseMatrix|SharedModelPluginPricingDatabaseMatrix)' -count=1 -v -timeout=180s
+# 分别设置 TEST_CHANNEL_SQL_DSN 为 MySQL / PostgreSQL 测试 DSN，TEST_TASK_DB_DIALECT 为 mysql / postgres
+GOWORK=off go test ./controller -run 'Test(AddChannel|ImmediateTaskSettlementDatabase|GetTaskPluginRuntime|TaskPluginRuntime)' -count=1 -v -timeout=180s
+```
+
+没有调用真实 AI 上游、支付或外部登录。验证日志保留在 `/tmp/newapi-rc48-*.log`，不作为发布依赖；一次性数据库容器及匿名数据卷清理后恢复 Colima 为原来的关闭状态。生产镜像替换继续由用户自行择时操作。
+
 ## 2026-10-25 rc.47 本地整合与旧 403 规则清理
 
 用户要求同步发布版并移除旧的 Claude Code 准入错误特判，放弃新增统计排除配置。本轮仅本地合并、验证和提交；未推送、发布镜像或操作生产。上游 `v1.0.0-rc.47` / `e835b1bfc`，合并提交 `8bf43169f`。七种语言文件按 JSON 键进行三方合并，保留本站新增翻译并沿用上游排序；其他文件自动合并。本站 count_tokens 免计费与免性能采样、拒绝类别、管理员账号日志、分组展示隔离、状态页、USDT 和发布工作流继续保留。
