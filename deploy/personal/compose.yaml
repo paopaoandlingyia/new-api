@@ -1,0 +1,35 @@
+name: new-api-personal
+
+services:
+  new-api:
+    image: ${NEW_API_PERSONAL_IMAGE:-ghcr.io/paopaoandlingyia/new-api:sha-7e7d993a}
+    container_name: new-api-personal
+    restart: unless-stopped
+    ports:
+      - "${NEW_API_PERSONAL_BIND_ADDRESS:-127.0.0.1}:${NEW_API_PERSONAL_PORT:-3211}:3000"
+    volumes:
+      - ./data:/data
+    environment:
+      TZ: Asia/Shanghai
+      DEFAULT_LANGUAGE: zh-CN
+      NODE_NAME: new-api-personal
+      SESSION_SECRET: ${NEW_API_PERSONAL_SESSION_SECRET:?set NEW_API_PERSONAL_SESSION_SECRET in .env}
+      CRYPTO_SECRET: ${NEW_API_PERSONAL_CRYPTO_SECRET:?set NEW_API_PERSONAL_CRYPTO_SECRET in .env}
+      SESSION_COOKIE_SECURE: "false"
+      TRUSTED_PROXIES: none
+      GOMEMLIMIT: 512MiB
+    cpus: 1.0
+    mem_limit: 768m
+    pids_limit: 128
+    stop_grace_period: 30s
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O - http://127.0.0.1:3000/api/status | grep -q '\"success\":true'"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 60s
