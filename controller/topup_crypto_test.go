@@ -113,7 +113,7 @@ func TestCryptoPaymentDatabaseMatrix(t *testing.T) {
 				topup := &model.TopUp{TradeNo: fmt.Sprintf("crypto-%d", i), UserId: user.Id, Amount: 10, PaymentProvider: model.PaymentProviderCrypto, PaymentMethod: model.PaymentProviderCrypto, Status: common.TopUpStatusPending}
 				order, err := model.CreateCryptoPaymentOrder(wallet.ID, topup, 500, 10000000, 30)
 				require.NoError(t, err)
-				assert.EqualValues(t, 10000001+i, order.AmountUnits)
+				assert.EqualValues(t, 10001000+i*1000, order.AmountUnits)
 				orders = append(orders, order)
 			}
 			transfer := cryptopay.Transfer{Network: wallet.Network, Asset: wallet.Asset, Address: wallet.Address, TransactionID: strings.Repeat("a", 64), Amount: orders[0].AmountUnits, Timestamp: orders[0].CreatedAt + 1}
@@ -202,20 +202,150 @@ func TestCryptoPaymentDatabaseMatrix(t *testing.T) {
 			var topup model.TopUp
 			require.NoError(t, db.Where("trade_no = ?", orders[4].TradeNo).First(&topup).Error)
 			assert.Equal(t, common.TopUpStatusPending, topup.Status)
-			// Database uniqueness remains intact across repeated migrations.
-			require.NoError(t, db.AutoMigrate(&model.CryptoWallet{}, &model.CryptoPaymentOrder{}, &model.CryptoTransfer{}))
+			// Order numbers and receipts remain unique across repeated migrations.
+			require.NoError(t, model.MigrateCryptoPaymentOrders(db))
 			copyOrder := *orders[0]
 			copyOrder.ID = 0
-			copyOrder.TradeNo = "duplicate-amount"
 			require.Error(t, db.Create(&copyOrder).Error)
 			copyTransfer := *record
 			copyTransfer.ID = 0
 			require.Error(t, db.Create(&copyTransfer).Error)
-			// A permanently reserved price range fails explicitly when exhausted.
-			require.NoError(t, db.Create(&model.CryptoPaymentOrder{TradeNo: "last-slot", WalletID: wallet.ID, AmountUnits: 20009999}).Error)
-			_, err = model.CreateCryptoPaymentOrder(wallet.ID, &model.TopUp{TradeNo: "exhausted", UserId: user.Id}, 500, 20000000, 30)
-			require.ErrorContains(t, err, "exhausted")
 		})
+	}
+}
+
+// Schema deployed before amount reuse, including its permanent reservation.
+type cryptoPaymentOrderBeforeReuse struct {
+	ID          int64  `gorm:"primaryKey"`
+	TradeNo     string `gorm:"type:varchar(255);uniqueIndex"`
+	UserID      int    `gorm:"index"`
+	WalletID    int64  `gorm:"uniqueIndex:crypto_amount_reservation"`
+	AmountUnits int64  `gorm:"uniqueIndex:crypto_amount_reservation"`
+	CreditQuota int64
+	CreatedAt   int64
+	ExpiresAt   int64 `gorm:"index"`
+}
+
+func TestCryptoAmountReuseDatabaseMatrix(t *testing.T) {
+	for _, dialect := range []string{"sqlite", "mysql", "postgres"} {
+		for _, scenario := range []string{"fresh", "upgrade"} {
+			t.Run(dialect+"/"+scenario, func(t *testing.T) {
+				db := cryptoPaymentTestDB(t, dialect)
+				require.NoError(t, db.AutoMigrate(&model.User{}, &model.TopUp{}, &model.Log{}, &model.CryptoWallet{}, &model.CryptoTransfer{}))
+				if scenario == "upgrade" {
+					table := db.NamingStrategy.TableName("CryptoPaymentOrder")
+					require.NoError(t, db.Table(table).AutoMigrate(&cryptoPaymentOrderBeforeReuse{}))
+					require.True(t, db.Migrator().HasIndex(table, "crypto_amount_reservation"))
+				} else {
+					require.NoError(t, model.MigrateCryptoPaymentOrders(db))
+				}
+				oldUser := &model.User{Username: "old-payer", AffCode: "old-payer", Status: common.UserStatusEnabled}
+				newUser := &model.User{Username: "new-payer", AffCode: "new-payer", Status: common.UserStatusEnabled}
+				require.NoError(t, db.Create(oldUser).Error)
+				require.NoError(t, db.Create(newUser).Error)
+				wallet, err := model.EnsureCryptoWallet(cryptopay.TRON, cryptopay.USDT, cryptopay.TRONUSDTContract)
+				require.NoError(t, err)
+				now := time.Now()
+				old := &model.CryptoPaymentOrder{TradeNo: "old-order", UserID: oldUser.Id, WalletID: wallet.ID, AmountUnits: 10001000, CreditQuota: 500, CreatedAt: now.Add(-26 * time.Hour).UnixMilli(), ExpiresAt: now.Add(-25 * time.Hour).UnixMilli()}
+				legacy := *old
+				legacy.TradeNo, legacy.AmountUnits = "legacy-six-decimals", 10000007
+				for _, order := range []*model.CryptoPaymentOrder{old, &legacy} {
+					require.NoError(t, db.Create(&model.TopUp{TradeNo: order.TradeNo, UserId: oldUser.Id, PaymentProvider: model.PaymentProviderCrypto, Status: common.TopUpStatusExpired}).Error)
+					require.NoError(t, db.Create(order).Error)
+				}
+				for range 2 {
+					require.NoError(t, model.MigrateCryptoPaymentOrders(db))
+				}
+				assert.False(t, db.Migrator().HasIndex(&model.CryptoPaymentOrder{}, "crypto_amount_reservation"))
+				assert.True(t, db.Migrator().HasIndex(&model.CryptoPaymentOrder{}, "crypto_order_amount"))
+				var preserved model.CryptoPaymentOrder
+				require.NoError(t, db.First(&preserved, legacy.ID).Error)
+				assert.Equal(t, legacy, preserved)
+				assert.Equal(t, "10.000007", cryptoOrderResponse(&preserved, wallet, common.TopUpStatusExpired)["amount"])
+
+				// Even a cooled amount waits until every never-used candidate is taken.
+				for i := 2; i <= 99; i++ {
+					topup := &model.TopUp{TradeNo: fmt.Sprintf("new-%d", i), UserId: newUser.Id, PaymentProvider: model.PaymentProviderCrypto, Status: common.TopUpStatusPending}
+					order, err := model.CreateCryptoPaymentOrder(wallet.ID, topup, 500, 10000000, 30)
+					require.NoError(t, err)
+					assert.EqualValues(t, 10000000+i*1000, order.AmountUnits)
+				}
+				// Adjacent base prices share the same wallet-wide reservation space.
+				adjacent, err := model.CreateCryptoPaymentOrder(wallet.ID, &model.TopUp{TradeNo: "adjacent", UserId: newUser.Id, PaymentProvider: model.PaymentProviderCrypto, Status: common.TopUpStatusPending}, 500, 10010000, 30)
+				require.NoError(t, err)
+				assert.EqualValues(t, 10100000, adjacent.AmountUnits)
+				reused, err := model.CreateCryptoPaymentOrder(wallet.ID, &model.TopUp{TradeNo: "reused", UserId: newUser.Id, PaymentProvider: model.PaymentProviderCrypto, Status: common.TopUpStatusPending}, 500, 10000000, 30)
+				require.NoError(t, err)
+				assert.Equal(t, old.AmountUnits, reused.AmountUnits)
+				assert.Equal(t, "10.001", cryptoOrderResponse(reused, wallet, common.TopUpStatusPending)["amount"])
+				_, err = model.CreateCryptoPaymentOrder(wallet.ID, &model.TopUp{TradeNo: "unavailable", UserId: newUser.Id}, 500, 10000000, 30)
+				require.ErrorContains(t, err, "currently available")
+
+				// A delayed scan credits the historical payer, despite a newer order
+				// using the same amount. An out-of-window transfer stays for review.
+				for i, payment := range []struct {
+					timestamp int64
+					tradeNo   string
+				}{
+					{old.ExpiresAt, old.TradeNo},
+					{old.ExpiresAt + 1, ""},
+					{reused.CreatedAt, reused.TradeNo},
+				} {
+					receipt, _, err := model.RecordCryptoTransfer(cryptopay.Transfer{Network: wallet.Network, Asset: wallet.Asset, Address: wallet.Address, Amount: reused.AmountUnits, TransactionID: fmt.Sprintf("receipt-%d", i), Timestamp: payment.timestamp})
+					require.NoError(t, err)
+					credited, err := model.SettleCryptoTransfer(receipt.ID, "", "test")
+					require.NoError(t, err)
+					assert.Equal(t, payment.tradeNo != "", credited)
+					require.NoError(t, db.First(receipt, receipt.ID).Error)
+					assert.Equal(t, payment.tradeNo, receipt.TradeNo)
+					if payment.tradeNo == "" {
+						assert.Equal(t, "outside_payment_window", receipt.ReviewReason)
+					}
+				}
+				require.NoError(t, db.First(oldUser, oldUser.Id).Error)
+				require.NoError(t, db.First(newUser, newUser.Id).Error)
+				assert.Equal(t, 500, oldUser.Quota)
+				assert.Equal(t, 500, newUser.Quota)
+
+				// Expiry alone cannot release an amount less than 24 hours after
+				// completion. Among eligible amounts, reuse the oldest first.
+				require.NoError(t, db.Model(&model.CryptoPaymentOrder{}).Where("wallet_id = ?", wallet.ID).Updates(map[string]any{"created_at": now.Add(-26 * time.Hour).UnixMilli(), "expires_at": now.Add(-24*time.Hour - time.Minute).UnixMilli()}).Error)
+				require.NoError(t, db.Model(&model.TopUp{}).Where("trade_no = ?", "new-2").Updates(map[string]any{"status": common.TopUpStatusSuccess, "complete_time": now.Unix()}).Error)
+				require.NoError(t, db.Model(&model.CryptoPaymentOrder{}).Where("trade_no = ?", "new-3").Update("expires_at", now.Add(-25*time.Hour).UnixMilli()).Error)
+				require.NoError(t, db.Model(&model.CryptoPaymentOrder{}).Where("trade_no = ?", "new-4").Update("expires_at", now.Add(-24*time.Hour+time.Minute).UnixMilli()).Error)
+				oldest, err := model.CreateCryptoPaymentOrder(wallet.ID, &model.TopUp{TradeNo: "oldest", UserId: newUser.Id, PaymentProvider: model.PaymentProviderCrypto, Status: common.TopUpStatusPending}, 500, 10000000, 30)
+				require.NoError(t, err)
+				assert.EqualValues(t, 10003000, oldest.AmountUnits)
+
+				var wg sync.WaitGroup
+				results := make(chan *model.CryptoPaymentOrder, 2)
+				failures := make(chan error, 2)
+				for i := range 2 {
+					wg.Go(func() {
+						order, err := model.CreateCryptoPaymentOrder(wallet.ID, &model.TopUp{TradeNo: fmt.Sprintf("concurrent-%d", i), UserId: newUser.Id, PaymentProvider: model.PaymentProviderCrypto, Status: common.TopUpStatusPending}, 500, 10000000, 30)
+						results <- order
+						failures <- err
+					})
+				}
+				wg.Wait()
+				close(results)
+				close(failures)
+				for err := range failures {
+					require.NoError(t, err)
+				}
+				var allocated []int64
+				for order := range results {
+					allocated = append(allocated, order.AmountUnits)
+				}
+				assert.ElementsMatch(t, []int64{10005000, 10006000}, allocated)
+				for range 2 {
+					require.NoError(t, model.MigrateCryptoPaymentOrders(db))
+				}
+				var historyCount int64
+				require.NoError(t, db.Model(&model.CryptoPaymentOrder{}).Where("wallet_id = ? AND amount_units = ?", wallet.ID, reused.AmountUnits).Count(&historyCount).Error)
+				assert.EqualValues(t, 2, historyCount)
+			})
+		}
 	}
 }
 
@@ -365,7 +495,7 @@ func TestCryptoCheckoutOwnershipAndValidation(t *testing.T) {
 	}
 	require.NoError(t, common.Unmarshal(response.Body.Bytes(), &checkout))
 	require.True(t, checkout.Success, response.Body.String())
-	assert.Equal(t, "10.000001", checkout.Data.Amount)
+	assert.Equal(t, "10.001", checkout.Data.Amount)
 	var order model.CryptoPaymentOrder
 	require.NoError(t, db.Where("trade_no = ?", checkout.Data.TradeNo).First(&order).Error)
 	assert.EqualValues(t, 5000000, order.CreditQuota)
@@ -412,7 +542,7 @@ func TestCryptoCheckoutOwnershipAndValidation(t *testing.T) {
 	require.True(t, checkout.Success, response.Body.String())
 	assert.Equal(t, "bsc", checkout.Data.Network)
 	assert.Equal(t, cryptopay.BSCUSDTContract, checkout.Data.Address)
-	assert.Equal(t, "10.000001", checkout.Data.Amount, "each network reserves its own amounts")
+	assert.Equal(t, "10.001", checkout.Data.Amount, "each network reserves its own amounts")
 	bscTradeNo := checkout.Data.TradeNo
 	stored.BSCEnabled = false
 	raw, err = common.Marshal(stored)
@@ -460,7 +590,7 @@ func TestCryptoBSCPaymentPrecision(t *testing.T) {
 			tronOrder, err := model.CreateCryptoPaymentOrder(tron.ID, &model.TopUp{TradeNo: "tron-order", UserId: user.Id, PaymentProvider: model.PaymentProviderCrypto, Status: common.TopUpStatusPending}, 500, 10000000, 30)
 			require.NoError(t, err)
 			assert.Equal(t, order.AmountUnits, tronOrder.AmountUnits)
-			dust := cryptopay.Transfer{Network: cryptopay.BSC, Asset: cryptopay.USDT, Address: wallet.Address, TransactionID: "0x" + strings.Repeat("a", 64), RawAmount: "10000001000000000001", Timestamp: order.CreatedAt + 1}
+			dust := cryptopay.Transfer{Network: cryptopay.BSC, Asset: cryptopay.USDT, Address: wallet.Address, TransactionID: "0x" + strings.Repeat("a", 64), RawAmount: "10001000000000000001", Timestamp: order.CreatedAt + 1}
 			receipt, inserted, err := model.RecordCryptoTransfer(dust)
 			require.NoError(t, err)
 			assert.True(t, inserted)
@@ -474,8 +604,8 @@ func TestCryptoBSCPaymentPrecision(t *testing.T) {
 			require.Error(t, err, "manual reconciliation must not cross networks")
 			exact := dust
 			exact.EventIndex = 1
-			exact.Amount = 10000001
-			exact.RawAmount = "10000001000000000000"
+			exact.Amount = 10001000
+			exact.RawAmount = "10001000000000000000"
 			exactReceipt, _, err := model.RecordCryptoTransfer(exact)
 			require.NoError(t, err)
 			for range 2 {
@@ -491,7 +621,7 @@ func TestCryptoBSCPaymentPrecision(t *testing.T) {
 			require.NoError(t, err)
 			assert.False(t, inserted)
 			assert.Equal(t, exactReceipt.ID, replay.ID)
-			exact.RawAmount = "10000001000000000001"
+			exact.RawAmount = "10001000000000000001"
 			exact.Amount = 0
 			_, _, err = model.RecordCryptoTransfer(exact)
 			require.ErrorContains(t, err, "conflicting")
@@ -625,11 +755,11 @@ func TestCryptoBSCScanRecoveryAndNetworkIsolation(t *testing.T) {
 	order, err := model.CreateCryptoPaymentOrder(bsc.ID, &model.TopUp{TradeNo: "scan-bsc", UserId: user.Id, PaymentProvider: model.PaymentProviderCrypto, Status: common.TopUpStatusPending}, 500, 10000000, 30)
 	require.NoError(t, err)
 	require.NoError(t, db.Model(order).Update("created_at", time.Now().Add(-5*time.Minute).UnixMilli()).Error)
-	transfer := cryptopay.Transfer{Network: cryptopay.BSC, Asset: cryptopay.USDT, Address: bsc.Address, TransactionID: "0x" + strings.Repeat("d", 64), Timestamp: time.Now().Add(-10 * time.Second).UnixMilli(), RawAmount: "10000001000000000001"}
+	transfer := cryptopay.Transfer{Network: cryptopay.BSC, Asset: cryptopay.USDT, Address: bsc.Address, TransactionID: "0x" + strings.Repeat("d", 64), Timestamp: time.Now().Add(-10 * time.Second).UnixMilli(), RawAmount: "10001000000000000001"}
 	exact := transfer
 	exact.EventIndex = 1
-	exact.Amount = 10000001
-	exact.RawAmount = "10000001000000000000"
+	exact.Amount = 10001000
+	exact.RawAmount = "10001000000000000000"
 	tronScanner := &cryptoTestScanner{failSecond: true}
 	finalizedThrough := time.Now().Add(-time.Second).UnixMilli()
 	bscScanner := &cryptoTestScanner{failSecond: true, transfers: []cryptopay.Transfer{transfer, exact}, finalizedThrough: finalizedThrough}

@@ -7833,7 +7833,6 @@
     "Optional public note": "Необязательное публичное примечание",
     "Order already paid": "Заказ уже оплачен",
     "Order Number": "Номер заказа",
-    "Pay before {{time}}. The identifying suffix is below 0.01 USDT and does not increase your credit. Ensure the amount received matches exactly; withdrawal fees are separate.": "Оплатите до {{time}}. Идентификационная добавка меньше 0,01 USDT и не увеличивает баланс. Полученная сумма должна точно совпадать; комиссия за вывод оплачивается отдельно.",
     "Payment outside the order window": "Платёж вне срока оплаты заказа",
     "Payment received": "Платёж получен",
     "Payment window (minutes)": "Срок оплаты (минуты)",
@@ -7896,6 +7895,8 @@
     "View payment details": "Подробности платежа",
     "Visitors must authenticate before accessing the model status page.": "Для доступа к странице состояния моделей посетители должны войти в систему.",
     "Waiting for confirmed payment": "Ожидание подтверждения платежа",
-    "Waiting for sync": "Ожидание синхронизации"
+    "Waiting for sync": "Ожидание синхронизации",
+    "Pay before {{time}}. The identifying suffix is below 0.1 USDT and does not increase your credit. Ensure the amount received matches exactly; withdrawal fees are separate.": "Оплатите до {{time}}. Идентификационная добавка меньше 0,1 USDT и не увеличивает баланс. Полученная сумма должна точно совпадать; комиссия за вывод оплачивается отдельно.",
+    "No payment amount is currently available. Please try again later.": "Сейчас нет доступной суммы платежа. Повторите попытку позже."
   }
 }

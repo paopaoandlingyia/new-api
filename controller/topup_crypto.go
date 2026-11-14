@@ -112,7 +112,7 @@ func SaveCryptoPaymentConfig(c *gin.Context) {
 	common.ApiSuccess(c, nil)
 }
 
-// The nominal price excludes the identifying suffix (< 0.01 USDT). Quota is
+// The nominal price excludes the identifying suffix (< 0.1 USDT). Quota is
 // snapshotted before checkout; changing settings cannot change an existing order.
 func cryptoTopUpPrice(amount int64, userID int, cfg setting.CryptoPaymentConfig) (int, int64, error) {
 	if err := cfg.Validate(); err != nil {
@@ -229,7 +229,11 @@ func cryptoOrderResponse(order *model.CryptoPaymentOrder, wallet *model.CryptoWa
 	if status == common.TopUpStatusPending && order.ExpiresAt < time.Now().UnixMilli() {
 		status = common.TopUpStatusExpired
 	}
-	return gin.H{"trade_no": order.TradeNo, "network": wallet.Network, "asset": wallet.Asset, "address": wallet.Address, "amount": decimal.NewFromInt(order.AmountUnits).Shift(-6).StringFixed(6), "credit_quota": order.CreditQuota, "expires_at": order.ExpiresAt, "status": status}
+	precision := int32(3)
+	if order.AmountUnits%1000 != 0 {
+		precision = 6
+	}
+	return gin.H{"trade_no": order.TradeNo, "network": wallet.Network, "asset": wallet.Asset, "address": wallet.Address, "amount": decimal.NewFromInt(order.AmountUnits).Shift(-6).StringFixed(precision), "credit_quota": order.CreditQuota, "expires_at": order.ExpiresAt, "status": status}
 }
 
 func GetCryptoOrder(c *gin.Context) {

@@ -12,7 +12,12 @@ import (
 	"gorm.io/gorm/clause"
 )
 
-const PaymentProviderCrypto = "crypto"
+const (
+	PaymentProviderCrypto    = "crypto"
+	cryptoPaymentAmountStep  = int64(1000)   // 0.001 USDT, stored as micro-USDT.
+	cryptoPaymentAmountRange = int64(100000) // Identifying suffix below 0.1 USDT.
+	cryptoPaymentCooldown    = 24 * time.Hour
+)
 
 // CryptoWallet is also the allocation lock and durable scanner checkpoint.
 // Addresses remain monitored after configuration changes so old orders settle.
@@ -30,15 +35,15 @@ type CryptoWallet struct {
 	LastFullScan      int64  `json:"last_full_scan"`
 }
 
-// AmountUnits is integer micro-USDT. The unique reservation is permanent:
-// arbitrary late payments make finite-time amount reuse inherently ambiguous.
-// Each cent of base price has 9999 distinct suffixes below one additional cent.
+// AmountUnits is integer micro-USDT, including legacy six-decimal orders.
+// Wallet allocation is serialized; an amount can recur in non-overlapping
+// payment windows after its previous uses have cooled down.
 type CryptoPaymentOrder struct {
 	ID          int64  `json:"id" gorm:"primaryKey"`
 	TradeNo     string `json:"trade_no" gorm:"type:varchar(255);uniqueIndex"`
 	UserID      int    `json:"user_id" gorm:"index"`
-	WalletID    int64  `json:"wallet_id" gorm:"uniqueIndex:crypto_amount_reservation"`
-	AmountUnits int64  `json:"-" gorm:"uniqueIndex:crypto_amount_reservation"`
+	WalletID    int64  `json:"wallet_id" gorm:"index:crypto_order_amount"`
+	AmountUnits int64  `json:"-" gorm:"index:crypto_order_amount"`
 	CreditQuota int64  `json:"credit_quota"`
 	CreatedAt   int64  `json:"created_at"`
 	ExpiresAt   int64  `json:"expires_at" gorm:"index"`
@@ -58,6 +63,18 @@ type CryptoTransfer struct {
 	ReviewReason   string `json:"review_reason" gorm:"type:varchar(255)"`
 }
 
+// MigrateCryptoPaymentOrders retains payment history while allowing an amount
+// to be reused. Create the lookup index before removing the legacy unique index.
+func MigrateCryptoPaymentOrders(db *gorm.DB) error {
+	if err := db.AutoMigrate(&CryptoPaymentOrder{}); err != nil {
+		return err
+	}
+	if db.Migrator().HasIndex(&CryptoPaymentOrder{}, "crypto_amount_reservation") {
+		return db.Migrator().DropIndex(&CryptoPaymentOrder{}, "crypto_amount_reservation")
+	}
+	return nil
+}
+
 func EnsureCryptoWallet(network, asset, address string) (*CryptoWallet, error) {
 	wallet := CryptoWallet{Network: network, Asset: asset, Address: address, CreatedAt: time.Now().UnixMilli()}
 	if err := DB.Clauses(clause.OnConflict{DoNothing: true}).Create(&wallet).Error; err != nil {
@@ -73,8 +90,7 @@ func CreateCryptoPaymentOrder(walletID int64, topup *TopUp, creditQuota int, bas
 	if creditQuota <= 0 || creditQuota > common.MaxWalletQuota || baseUnits <= 0 || baseUnits%10000 != 0 || baseUnits > 1000000000000 || minutes < 5 || minutes > 1440 {
 		return nil, fmt.Errorf("invalid crypto payment amount or window")
 	}
-	order := &CryptoPaymentOrder{TradeNo: topup.TradeNo, UserID: topup.UserId, WalletID: walletID, CreditQuota: int64(creditQuota), CreatedAt: time.Now().UnixMilli()}
-	order.ExpiresAt = order.CreatedAt + minutes*60000
+	order := &CryptoPaymentOrder{TradeNo: topup.TradeNo, UserID: topup.UserId, WalletID: walletID, CreditQuota: int64(creditQuota)}
 	err := DB.Transaction(func(tx *gorm.DB) error {
 		// This write also serializes SQLite allocation transactions, where row
 		// locks are unavailable. Never rely on a process-local allocation mutex.
@@ -85,14 +101,38 @@ func CreateCryptoPaymentOrder(walletID int64, topup *TopUp, creditQuota int, bas
 		if result.RowsAffected != 1 {
 			return gorm.ErrRecordNotFound
 		}
-		var highest CryptoPaymentOrder
-		err := tx.Where("wallet_id = ? AND amount_units > ? AND amount_units < ?", walletID, baseUnits, baseUnits+10000).Order("amount_units desc").First(&highest).Error
-		if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
+		order.CreatedAt = time.Now().UnixMilli()
+		order.ExpiresAt = order.CreatedAt + minutes*60000
+		var uses []struct {
+			AmountUnits  int64
+			ExpiresAt    int64
+			CompleteTime int64
+		}
+		err := tx.Table(tx.NamingStrategy.TableName("CryptoPaymentOrder")+" AS crypto_orders").
+			Select("crypto_orders.amount_units, MAX(crypto_orders.expires_at) AS expires_at, COALESCE(MAX(crypto_topups.complete_time), 0) AS complete_time").
+			Joins("LEFT JOIN (?) AS crypto_topups ON crypto_topups.trade_no = crypto_orders.trade_no", tx.Model(&TopUp{}).Select("trade_no, complete_time")).
+			Where("crypto_orders.wallet_id = ? AND crypto_orders.amount_units > ? AND crypto_orders.amount_units < ?", walletID, baseUnits, baseUnits+cryptoPaymentAmountRange).
+			Group("crypto_orders.amount_units").Scan(&uses).Error
+		if err != nil {
 			return err
 		}
-		order.AmountUnits = max(baseUnits+1, highest.AmountUnits+1)
-		if order.AmountUnits >= baseUnits+10000 {
-			return fmt.Errorf("payment amounts for this price are exhausted; change the price or receiving address")
+		reuseAfter := make(map[int64]int64, len(uses))
+		for _, use := range uses {
+			reuseAfter[use.AmountUnits] = max(use.ExpiresAt, use.CompleteTime*1000) + cryptoPaymentCooldown.Milliseconds()
+		}
+		var oldestAvailable int64
+		for amount := baseUnits + cryptoPaymentAmountStep; amount < baseUnits+cryptoPaymentAmountRange; amount += cryptoPaymentAmountStep {
+			availableAt, used := reuseAfter[amount]
+			if !used {
+				order.AmountUnits = amount
+				break
+			}
+			if availableAt <= order.CreatedAt && (order.AmountUnits == 0 || availableAt < oldestAvailable) {
+				order.AmountUnits, oldestAvailable = amount, availableAt
+			}
+		}
+		if order.AmountUnits == 0 {
+			return errors.New("No payment amount is currently available. Please try again later.")
 		}
 		topup.Money = decimal.NewFromInt(order.AmountUnits).Shift(-6).InexactFloat64()
 		if err := tx.Create(topup).Error; err != nil {
@@ -154,7 +194,7 @@ func SettleCryptoTransfer(transferID int64, manualTradeNo string, callerIP strin
 			return nil
 		}
 		var wallet CryptoWallet
-		if err := tx.Where("network = ? AND asset = ? AND address = ?", transfer.Network, transfer.Asset, transfer.Address).First(&wallet).Error; err != nil {
+		if err := lockForUpdate(tx).Where("network = ? AND asset = ? AND address = ?", transfer.Network, transfer.Asset, transfer.Address).First(&wallet).Error; err != nil {
 			return err
 		}
 		var order CryptoPaymentOrder
@@ -162,16 +202,20 @@ func SettleCryptoTransfer(transferID int64, manualTradeNo string, callerIP strin
 		if manualTradeNo != "" {
 			query = query.Where("trade_no = ?", manualTradeNo)
 		} else {
-			query = query.Where("amount_units = ?", transfer.AmountUnits)
+			query = query.Where("amount_units = ? AND created_at <= ? AND expires_at >= ?", transfer.AmountUnits, transfer.BlockTimestamp, transfer.BlockTimestamp)
 		}
 		err := query.First(&order).Error
 		if errors.Is(err, gorm.ErrRecordNotFound) && manualTradeNo == "" {
 			review = "unmatched_amount"
+			var count int64
+			if err := tx.Model(&CryptoPaymentOrder{}).Where("wallet_id = ? AND amount_units = ?", wallet.ID, transfer.AmountUnits).Count(&count).Error; err != nil {
+				return err
+			}
+			if count > 0 {
+				review = "outside_payment_window"
+			}
 		} else if err != nil {
 			return err
-		}
-		if review == "" && manualTradeNo == "" && (transfer.BlockTimestamp < order.CreatedAt || transfer.BlockTimestamp > order.ExpiresAt) {
-			review = "outside_payment_window"
 		}
 		if review != "" {
 			return tx.Model(&transfer).Update("review_reason", review).Error

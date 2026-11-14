@@ -7833,7 +7833,6 @@
     "Optional public note": "Ghi chú công khai không bắt buộc",
     "Order already paid": "Đơn hàng đã thanh toán",
     "Order Number": "Mã đơn hàng",
-    "Pay before {{time}}. The identifying suffix is below 0.01 USDT and does not increase your credit. Ensure the amount received matches exactly; withdrawal fees are separate.": "Thanh toán trước {{time}}. Phần lẻ nhận dạng dưới 0,01 USDT không được cộng vào số dư. Đảm bảo số tiền thực nhận khớp chính xác; phí rút tiền tính riêng.",
     "Payment outside the order window": "Thanh toán ngoài thời hạn của đơn hàng",
     "Payment received": "Đã nhận thanh toán",
     "Payment window (minutes)": "Thời hạn thanh toán (phút)",
@@ -7896,6 +7895,8 @@
     "View payment details": "Xem chi tiết thanh toán",
     "Visitors must authenticate before accessing the model status page.": "Khách truy cập phải đăng nhập để mở trang trạng thái mô hình.",
     "Waiting for confirmed payment": "Đang chờ xác nhận thanh toán",
-    "Waiting for sync": "Đang chờ đồng bộ"
+    "Waiting for sync": "Đang chờ đồng bộ",
+    "Pay before {{time}}. The identifying suffix is below 0.1 USDT and does not increase your credit. Ensure the amount received matches exactly; withdrawal fees are separate.": "Thanh toán trước {{time}}. Phần lẻ nhận dạng dưới 0,1 USDT không được cộng vào số dư. Đảm bảo số tiền thực nhận khớp chính xác; phí rút tiền tính riêng.",
+    "No payment amount is currently available. Please try again later.": "Hiện không có số tiền thanh toán khả dụng. Vui lòng thử lại sau."
   }
 }

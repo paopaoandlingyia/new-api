@@ -355,7 +355,6 @@ func migrateDB() error {
 		&Midjourney{},
 		&TopUp{},
 		&CryptoWallet{},
-		&CryptoPaymentOrder{},
 		&CryptoTransfer{},
 		&QuotaData{},
 		&Task{},
@@ -381,6 +380,9 @@ func migrateDB() error {
 		&UserAccessToken{},
 	)
 	if err != nil {
+		return err
+	}
+	if err := MigrateCryptoPaymentOrders(DB); err != nil {
 		return err
 	}
 	if err := InitializeUserAuthVersions(); err != nil {

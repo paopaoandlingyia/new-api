@@ -7833,7 +7833,6 @@
     "Optional public note": "Note publique facultative",
     "Order already paid": "Commande déjà payée",
     "Order Number": "Numéro de commande",
-    "Pay before {{time}}. The identifying suffix is below 0.01 USDT and does not increase your credit. Ensure the amount received matches exactly; withdrawal fees are separate.": "Payez avant {{time}}. Le suffixe d’identification est inférieur à 0,01 USDT et n’ajoute aucun crédit. Le montant reçu doit être exact ; les frais de retrait sont distincts.",
     "Payment outside the order window": "Paiement hors délai",
     "Payment received": "Paiement reçu",
     "Payment window (minutes)": "Délai de paiement (minutes)",
@@ -7896,6 +7895,8 @@
     "View payment details": "Voir le paiement",
     "Visitors must authenticate before accessing the model status page.": "Les visiteurs doivent se connecter pour accéder à la page d’état des modèles.",
     "Waiting for confirmed payment": "En attente de confirmation du paiement",
-    "Waiting for sync": "En attente de synchronisation"
+    "Waiting for sync": "En attente de synchronisation",
+    "Pay before {{time}}. The identifying suffix is below 0.1 USDT and does not increase your credit. Ensure the amount received matches exactly; withdrawal fees are separate.": "Payez avant {{time}}. Le suffixe d’identification est inférieur à 0,1 USDT et n’ajoute aucun crédit. Le montant reçu doit être exact ; les frais de retrait sont distincts.",
+    "No payment amount is currently available. Please try again later.": "Aucun montant de paiement n’est disponible pour le moment. Veuillez réessayer plus tard."
   }
 }

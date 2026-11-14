@@ -33,7 +33,7 @@ const order: CryptoPaymentOrder = {
   network: 'tron',
   asset: 'usdt',
   address: 'TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t',
-  amount: '10.000001',
+  amount: '10.001',
   credit_quota: 5000000,
   expires_at: 1900000000000,
   status: 'pending',
@@ -56,15 +56,18 @@ function renderOrder(value: CryptoPaymentOrder, onPaid = vi.fn()) {
 }
 
 describe('crypto payment instructions', () => {
-  test('preserves the identifying micro-USDT suffix in display and copy controls', async () => {
+  test('shows the three-decimal payment amount and its identifying suffix limit', async () => {
     vi.mocked(getCryptoOrder).mockResolvedValue({ success: true, data: order })
     renderOrder(order)
-    expect(await screen.findByText('10.000001 USDT')).toBeVisible()
+    expect(await screen.findByText('10.001 USDT')).toBeVisible()
     expect(
       screen.getByRole('button', { name: 'Copy payment amount' })
     ).toBeVisible()
     expect(screen.getByText('Network: TRON (TRC20)')).toBeVisible()
     expect(screen.getByText(/withdrawal fees are separate/)).toBeVisible()
+    expect(
+      screen.getByText(/identifying suffix is below 0.1 USDT/)
+    ).toBeVisible()
     expect(screen.getByText(/Pay before/)).toHaveTextContent(
       formatTimestampToDate(order.expires_at, 'milliseconds')
     )
@@ -75,6 +78,16 @@ describe('crypto payment instructions', () => {
       screen.getByText('Times are shown in your local timezone.')
     ).toBeVisible()
     expect(screen.getByText(/2–3 minutes/)).toBeVisible()
+  })
+
+  test('preserves a historical six-decimal payment amount without rounding', async () => {
+    const legacy = { ...order, amount: '10.000007' }
+    vi.mocked(getCryptoOrder).mockResolvedValue({ success: true, data: legacy })
+    renderOrder(legacy)
+    expect(await screen.findByText('10.000007 USDT')).toBeVisible()
+    expect(
+      screen.getByRole('button', { name: 'Copy payment amount' })
+    ).toBeVisible()
   })
 
   test('shows the BSC network fixed by the order', async () => {

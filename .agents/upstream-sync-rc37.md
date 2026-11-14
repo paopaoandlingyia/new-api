@@ -1,5 +1,30 @@
 # new-api 上游同步与部署记录
 
+## 2026-11-15 rc.51 本地整合
+
+用户确认先同步固定发布标签 `v1.0.0-rc.51`（`c9c6da278`），再单独实现三位 USDT 金额及 24 小时冷却复用。合并提交 `47e1d909a`，合并前 `e57001c9e`。本轮仅本地整合、验证、提交，未推送、发布镜像或操作生产；两个原有私人部署/迁移记录提交保留。
+
+保留 USDT 双链支付、count_tokens 免计费/免性能采样、分组展示隔离、拒绝类别与上游账号日志、状态页、HTML no-store、构建元信息和镜像工作流。冲突处理同时保留 USDT 扫描和上游任务清理；Docker PGO 改用 MoeForge 路径并保留提交号。七种语言按键三方合并，本站修改全部保留、无重复键。补充 `/model-status` 插件保留路径，避免插件占用本站控制台入口；上游新增日志测试补齐本站 `upstream_account` 字段。沿用现有 UI 封装，没有新增组件。
+
+验证（Go **1.26.10**，Bun **1.4.4**）：
+
+- 根模块构建通过；`relaykit/`、`tokenkit/` 各自 `GOWORK=off go build ./...` 和 `go test -p 3 ./... -count=1 -timeout=180s` 通过。
+- 根模块 `GOWORK=off go test -p 4 ./... -count=1 -timeout=180s` 有 49 个包通过；新增插件保留路径问题修复后，`go test ./pkg/jsplugin -count=1 -timeout=180s` 通过。剩余 router 三项为既有状态页路由清单缺项及两项缓存预期差异，合并前源码均复现。advancedcustom 本轮通过，合并前代理夹具仍复现旧网络差异。不宣称全仓测试全绿。
+- `bun install --frozen-lockfile`、`bun run typecheck`、`bun run build` 通过。完整前端 `bun run test -- --maxWorkers=2`：245 文件，**2906 项通过、1 项失败**。失败仍为 model-listing 的本站“不可用”翻译与旧断言不符，合并前源码同一断言复现（复核使用当前安装依赖）。215 个涉及的 TS/TSX 文件 oxlint 无错误；冲突解决文件及七种语言 oxfmt 通过。
+- SQLite **3.50.4**、MySQL **8.0.46**、PostgreSQL **18.6**：模型层鉴权缓存、渠道优先级、请求策略、JSON 列、迁移稳定性、系统任务历史/清理矩阵通过；控制器支付、请求策略和插件价格矩阵通过。新增提供商渠道状态、多密钥、取消和行锁用例在 MySQL/PostgreSQL 上通过。
+
+数据库命令（DSN 仅指向本机一次性测试库；PostgreSQL 使用 URL 格式供选择器识别）：
+
+```sh
+# GOTOOLCHAIN=go1.26.10 GOWORK=off；设置 TEST_MYSQL_DSN / TEST_POSTGRES_DSN
+go test ./model -run 'Test(AuthCacheIntegrityDatabaseMatrix|ChannelPriorityDatabaseMatrix|RequestPolicyDatabaseMatrix|MigrationSchemaStability|JSONColumnDatabaseRoundTrip|SystemTaskHistoryDatabaseMatrix|DeleteFinishedSystemTasksDatabaseMatrix)' -count=1 -v -timeout=180s
+go test ./controller -run 'Test(Crypto|RequestPolicyRoutingDatabaseMatrix|SharedModelPluginPricingDatabaseMatrix)' -count=1 -v -timeout=180s
+# 分别设置 TEST_TASK_DB_DIALECT=mysql / postgres
+go test ./model -run 'TestScheduledChannel(LockedStatus|LockedMultiKey|LockedCancellation|DatabaseRowLock)' -count=1 -v -timeout=180s
+```
+
+认证整合参考 OWASP Authentication / Session Management Cheat Sheets 的服务端权限、缓存完整性、会话与凭据保护要求，沿用相关回归；不宣称全站 ASVS 合规。ClickHouse、真实 AI 上游、真实支付及外部登录未验证。临时日志 `/tmp/newapi-rc51-*`；合并前快照路径记录在 `/tmp/newapi-rc51-baseline-path`。
+
 ## 2026-11-05 rc.48 本地整合
 
 用户确认完整同步固定发布标签 `v1.0.0-rc.48`（`706144769`），范围为本地合并、验证和提交。合并前为 `5928cc9a4`；自动三方合并无冲突。保留 USDT TRC20/BEP-20 支付、客户分组展示隔离、Claude 独立 count_tokens 免计费/免性能采样、拒绝类别、管理员上游账号日志、条件错误日志、状态页、HTML no-store、构建元信息和个人镜像发布工作流。七种语言文件无丢键、无重复键。未推送、发布镜像或操作生产。

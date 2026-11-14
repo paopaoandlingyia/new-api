@@ -7833,7 +7833,6 @@
     "Optional public note": "選填公告說明",
     "Order already paid": "訂單已支付",
     "Order Number": "訂單編號",
-    "Pay before {{time}}. The identifying suffix is below 0.01 USDT and does not increase your credit. Ensure the amount received matches exactly; withdrawal fees are separate.": "請在 {{time}} 前付款。識別尾數小於 0.01 USDT，不計入儲值額度。請確保實際到帳金額準確，提領手續費另計。",
     "Payment outside the order window": "到帳時間不在訂單支付期限內",
     "Payment received": "付款已到帳",
     "Payment window (minutes)": "支付期限（分鐘）",
@@ -7896,6 +7895,8 @@
     "View payment details": "查看支付詳情",
     "Visitors must authenticate before accessing the model status page.": "訪客必須登入後才能存取模型狀態頁。",
     "Waiting for confirmed payment": "等待鏈上確認到帳",
-    "Waiting for sync": "等待同步"
+    "Waiting for sync": "等待同步",
+    "Pay before {{time}}. The identifying suffix is below 0.1 USDT and does not increase your credit. Ensure the amount received matches exactly; withdrawal fees are separate.": "請在 {{time}} 前付款。識別尾數小於 0.1 USDT，不計入儲值額度。請確保實際到帳金額準確，提領手續費另計。",
+    "No payment amount is currently available. Please try again later.": "暫無可用的付款金額，請稍後重試。"
   }
 }

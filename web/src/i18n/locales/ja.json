@@ -7833,7 +7833,6 @@
     "Optional public note": "公開メモ（任意）",
     "Order already paid": "注文は支払済みです",
     "Order Number": "注文番号",
-    "Pay before {{time}}. The identifying suffix is below 0.01 USDT and does not increase your credit. Ensure the amount received matches exactly; withdrawal fees are separate.": "{{time}}までにお支払いください。識別用の端数は0.01 USDT未満で、残高には加算されません。出金手数料を別途考慮し、受取額を正確に合わせてください。",
     "Payment outside the order window": "注文の支払期限外の入金",
     "Payment received": "入金を確認しました",
     "Payment window (minutes)": "支払期限（分）",
@@ -7896,6 +7895,8 @@
     "View payment details": "支払詳細を表示",
     "Visitors must authenticate before accessing the model status page.": "モデル状態ページを表示するにはログインが必要です。",
     "Waiting for confirmed payment": "入金の確定を待っています",
-    "Waiting for sync": "同期待ち"
+    "Waiting for sync": "同期待ち",
+    "Pay before {{time}}. The identifying suffix is below 0.1 USDT and does not increase your credit. Ensure the amount received matches exactly; withdrawal fees are separate.": "{{time}}までにお支払いください。識別用の端数は0.1 USDT未満で、残高には加算されません。出金手数料を別途考慮し、受取額を正確に合わせてください。",
+    "No payment amount is currently available. Please try again later.": "現在利用可能な支払金額がありません。しばらくしてから再試行してください。"
   }
 }

@@ -172,7 +172,7 @@ export function CryptoPaymentDialog(props: Props) {
           <Alert>
             <AlertDescription>
               {t(
-                'Pay before {{time}}. The identifying suffix is below 0.01 USDT and does not increase your credit. Ensure the amount received matches exactly; withdrawal fees are separate.',
+                'Pay before {{time}}. The identifying suffix is below 0.1 USDT and does not increase your credit. Ensure the amount received matches exactly; withdrawal fees are separate.',
                 {
                   time: formatTimestampToDate(order.expires_at, 'milliseconds'),
                 }

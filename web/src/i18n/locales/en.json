@@ -7833,7 +7833,6 @@
     "Optional public note": "Optional public note",
     "Order already paid": "Order already paid",
     "Order Number": "Order Number",
-    "Pay before {{time}}. The identifying suffix is below 0.01 USDT and does not increase your credit. Ensure the amount received matches exactly; withdrawal fees are separate.": "Pay before {{time}}. The identifying suffix is below 0.01 USDT and does not increase your credit. Ensure the amount received matches exactly; withdrawal fees are separate.",
     "Payment outside the order window": "Payment outside the order window",
     "Payment received": "Payment received",
     "Payment window (minutes)": "Payment window (minutes)",
@@ -7896,6 +7895,8 @@
     "View payment details": "View payment details",
     "Visitors must authenticate before accessing the model status page.": "Visitors must authenticate before accessing the model status page.",
     "Waiting for confirmed payment": "Waiting for confirmed payment",
-    "Waiting for sync": "Waiting for sync"
+    "Waiting for sync": "Waiting for sync",
+    "Pay before {{time}}. The identifying suffix is below 0.1 USDT and does not increase your credit. Ensure the amount received matches exactly; withdrawal fees are separate.": "Pay before {{time}}. The identifying suffix is below 0.1 USDT and does not increase your credit. Ensure the amount received matches exactly; withdrawal fees are separate.",
+    "No payment amount is currently available. Please try again later.": "No payment amount is currently available. Please try again later."
   }
 }
