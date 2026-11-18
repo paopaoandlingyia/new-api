@@ -39,6 +39,7 @@ import {
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { api } from '@/lib/api'
+import { formatTimestampToDate } from '@/lib/format'
 import { requireServerSuccess } from '@/lib/server-error-message'
 
 import {
@@ -73,6 +74,7 @@ interface Transfer {
   transaction_id: string
   event_index: number
   amount: string
+  block_timestamp: number
   review_reason: string
   address: string
 }
@@ -318,7 +320,7 @@ function CryptoPaymentSettingsForm(props: { data: ConfigResponse }) {
           />
           <p className='text-muted-foreground text-sm'>
             {t(
-              'Amounts use six decimal places and are never automatically reused. Each base price has 9999 identifying suffixes below 0.01 USDT.'
+              'New payment amounts use three decimal places. Each base price has 99 identifying suffixes below 0.1 USDT. For the same receiving wallet, an amount can be reused 24 hours after the order expires or is completed, whichever is later.'
             )}
           </p>
         </SettingsForm>
@@ -337,14 +339,34 @@ function CryptoPaymentSettingsForm(props: { data: ConfigResponse }) {
       )}
       {transfers.data?.items.map((transfer) => (
         <div key={transfer.id} className='space-y-2 rounded-lg border p-3'>
-          <p className='font-mono'>{transfer.amount} USDT</p>
+          <div className='flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1'>
+            <p className='font-mono'>{transfer.amount} USDT</p>
+            {transfer.block_timestamp > 0 && (
+              <p className='text-muted-foreground flex flex-wrap gap-x-2 text-sm'>
+                <span>{t('On-chain transfer time')}</span>
+                <time
+                  dateTime={new Date(transfer.block_timestamp).toISOString()}
+                >
+                  {formatTimestampToDate(
+                    transfer.block_timestamp,
+                    'milliseconds'
+                  )}
+                </time>
+              </p>
+            )}
+          </div>
           <p className='text-sm'>
             {t('Network')}:{' '}
             {transfer.network === 'bsc'
               ? 'BNB Smart Chain (BEP-20)'
               : 'TRON (TRC20)'}
           </p>
-          <p className='text-sm break-all'>{transfer.address}</p>
+          <p className='flex flex-wrap gap-x-2 text-sm'>
+            <span className='text-muted-foreground'>
+              {t('Receiving address')}
+            </span>
+            <span className='min-w-0 break-all'>{transfer.address}</span>
+          </p>
           <div className='flex items-center gap-2'>
             <span className='min-w-0 font-mono text-xs break-all'>
               {transfer.transaction_id}:{transfer.event_index}

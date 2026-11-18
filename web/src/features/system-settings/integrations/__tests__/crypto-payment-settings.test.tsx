@@ -106,7 +106,8 @@ test('saves the BSC network and clears the credential input after success', asyn
   await waitFor(() => expect(rpc).toHaveValue(''))
 })
 
-test('shows the full BSC amount and network when a payment needs review', async () => {
+test('shows the exact BSC amount, network and local transfer time for review', async () => {
+  const transferTime = new Date(2026, 10, 16, 14, 5, 8)
   renderSettings([
     {
       id: 1,
@@ -115,10 +116,27 @@ test('shows the full BSC amount and network when a payment needs review', async 
       event_index: 0,
       amount: '10.000001000000000001',
       address: '0x55d398326f99059ff775485246999027b3197955',
+      block_timestamp: transferTime.getTime(),
       review_reason: 'unmatched_amount',
     },
   ])
   expect(await screen.findByText('10.000001000000000001 USDT')).toBeVisible()
   expect(screen.getByText('Network: BNB Smart Chain (BEP-20)')).toBeVisible()
+  expect(screen.getByText('On-chain transfer time')).toBeVisible()
+  expect(screen.getByText('2026-11-16 14:05:08')).toHaveAttribute(
+    'datetime',
+    transferTime.toISOString()
+  )
   expect(screen.getByText('No matching payment amount')).toBeVisible()
+})
+
+test('describes the precision and cooldown for new payment amounts', async () => {
+  renderSettings()
+  const rule = await screen.findByText(
+    /^New payment amounts use three decimal places/
+  )
+  expect(rule).toHaveTextContent('99 identifying suffixes below 0.1 USDT')
+  expect(rule).toHaveTextContent(
+    '24 hours after the order expires or is completed, whichever is later'
+  )
 })

@@ -23,6 +23,7 @@ import { Dialog } from '@/components/dialog'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
+import { cn } from '@/lib/utils'
 
 import type { CryptoNetwork } from '../../types'
 
@@ -68,15 +69,21 @@ export function CryptoNetworkDialog(props: Props) {
         }}
       >
         {props.networks.map((value) => (
-          <div
+          <Label
             key={value}
-            className='flex items-center gap-3 rounded-lg border p-4'
+            htmlFor={`usdt-network-${value}`}
+            className={cn(
+              'has-data-checked:border-primary has-data-checked:bg-primary/5 gap-3 rounded-lg border p-4 leading-snug transition-colors',
+              props.processing
+                ? 'cursor-not-allowed opacity-60'
+                : 'not-has-data-checked:hover:border-primary/50 not-has-data-checked:hover:bg-muted/50 cursor-pointer'
+            )}
           >
             <RadioGroupItem id={`usdt-network-${value}`} value={value} />
-            <Label htmlFor={`usdt-network-${value}`}>
+            <span>
               {value === 'bsc' ? 'BNB Smart Chain (BEP-20)' : 'TRON (TRC20)'}
-            </Label>
-          </div>
+            </span>
+          </Label>
         ))}
       </RadioGroup>
       {props.networks.length === 0 && (

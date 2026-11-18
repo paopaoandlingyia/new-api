@@ -38,7 +38,11 @@ test('requires explicit network selection before creating a payment order', asyn
   expect(
     screen.queryByText(/must support six decimal places/)
   ).not.toBeInTheDocument()
-  await user.click(screen.getByRole('radio', { name: 'TRON (TRC20)' }))
+  const tron = screen.getByRole('radio', { name: 'TRON (TRC20)' })
+  const optionCard = tron.parentElement
+  if (!optionCard) throw new Error('Expected a network option card')
+  await user.click(optionCard)
+  expect(tron).toBeChecked()
   await user.keyboard('{ArrowDown}')
   expect(
     screen.getByRole('radio', { name: 'BNB Smart Chain (BEP-20)' })
