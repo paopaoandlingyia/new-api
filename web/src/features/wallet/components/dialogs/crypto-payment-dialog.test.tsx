@@ -18,6 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { act, render, screen, waitFor } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { describe, expect, test, vi } from 'vitest'
 
 import { formatTimestampToDate } from '@/lib/format'
@@ -64,6 +65,10 @@ describe('crypto payment instructions', () => {
       screen.getByRole('button', { name: 'Copy payment amount' })
     ).toBeVisible()
     expect(screen.getByText('Network: TRON (TRC20)')).toBeVisible()
+    expect(screen.getByRole('img', { name: 'Receiving address' })).toBeVisible()
+    expect(
+      screen.queryByRole('button', { name: 'QR code with amount' })
+    ).not.toBeInTheDocument()
     expect(screen.getByText(/withdrawal fees are separate/)).toBeVisible()
     expect(
       screen.getByText(/identifying suffix is below 0.1 USDT/)
@@ -107,6 +112,37 @@ describe('crypto payment instructions', () => {
     ).not.toBeInTheDocument()
     expect(screen.queryByRole('radio')).not.toBeInTheDocument()
     expect(screen.getByText(/about 1 minute/)).toBeVisible()
+  })
+
+  test('starts with the BSC address QR code and lets users switch back after selecting the amount QR code', async () => {
+    const user = userEvent.setup()
+    const bsc: CryptoPaymentOrder = {
+      ...order,
+      trade_no: 'bsc-amount-qr',
+      network: 'bsc',
+      address: '0x8e23ee67d1332ad560396262c48ffbb01f93d052',
+      payment_uri:
+        'ethereum:0x55d398326f99059ff775485246999027b3197955@56/transfer?address=0x8e23ee67d1332ad560396262c48ffbb01f93d052&uint256=10001000000000000000',
+    }
+    vi.mocked(getCryptoOrder).mockResolvedValue({ success: true, data: bsc })
+    renderOrder(bsc)
+
+    expect(screen.getByRole('img', { name: 'Receiving address' })).toBeVisible()
+    await user.click(
+      screen.getByRole('button', { name: 'QR code with amount' })
+    )
+    expect(
+      screen.getByRole('img', { name: 'QR code with amount' })
+    ).toBeVisible()
+    expect(
+      screen.getByRole('button', { name: 'Address QR code' })
+    ).toHaveFocus()
+
+    await user.keyboard('{Enter}')
+    expect(screen.getByRole('img', { name: 'Receiving address' })).toBeVisible()
+    expect(
+      screen.getByRole('button', { name: 'Copy payment amount' })
+    ).toBeVisible()
   })
 
   test('counts down to the absolute deadline without declaring server-side expiry', () => {

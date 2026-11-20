@@ -233,7 +233,18 @@ func cryptoOrderResponse(order *model.CryptoPaymentOrder, wallet *model.CryptoWa
 	if order.AmountUnits%1000 != 0 {
 		precision = 6
 	}
-	return gin.H{"trade_no": order.TradeNo, "network": wallet.Network, "asset": wallet.Asset, "address": wallet.Address, "amount": decimal.NewFromInt(order.AmountUnits).Shift(-6).StringFixed(precision), "credit_quota": order.CreditQuota, "expires_at": order.ExpiresAt, "status": status}
+	amount := decimal.NewFromInt(order.AmountUnits).Shift(-6)
+	response := gin.H{
+		"trade_no": order.TradeNo, "network": wallet.Network, "asset": wallet.Asset,
+		"address": wallet.Address, "amount": amount.StringFixed(precision),
+		"credit_quota": order.CreditQuota, "expires_at": order.ExpiresAt, "status": status,
+	}
+	if status == common.TopUpStatusPending && wallet.Network == cryptopay.BSC {
+		// ERC-681 uses the token contract's 18-decimal units on BNB Smart Chain (56).
+		response["payment_uri"] = fmt.Sprintf("ethereum:%s@56/transfer?address=%s&uint256=%s",
+			cryptopay.BSCUSDTContract, wallet.Address, amount.Shift(18).StringFixed(0))
+	}
+	return response
 }
 
 func GetCryptoOrder(c *gin.Context) {

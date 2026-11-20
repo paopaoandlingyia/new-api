@@ -43,6 +43,7 @@ export function CryptoPaymentDialog(props: Props) {
   const tradeNo = props.order?.trade_no ?? ''
   const notifiedOrder = useRef('')
   const [now, setNow] = useState(Date.now)
+  const [amountQrTradeNo, setAmountQrTradeNo] = useState<string | null>(null)
   const query = useQuery({
     queryKey: ['crypto-order', tradeNo],
     queryFn: async () => {
@@ -79,6 +80,9 @@ export function CryptoPaymentDialog(props: Props) {
 
   if (!order) return null
   const pending = order.status === 'pending'
+  const amountQr = order.network === 'bsc' ? order.payment_uri : undefined
+  const selectedAmountQr =
+    amountQrTradeNo === order.trade_no ? amountQr : undefined
   const remaining = Math.max(0, Math.ceil((order.expires_at - now) / 1000))
   const remainingTime = `${Math.floor(remaining / 60)}:${String(remaining % 60).padStart(2, '0')}`
 
@@ -119,12 +123,30 @@ export function CryptoPaymentDialog(props: Props) {
           </p>
         )}
         {pending && (
-          <div className='flex justify-center'>
+          <div className='flex flex-col items-center gap-2'>
             <QRCodeSVG
-              value={order.address}
+              value={selectedAmountQr ?? order.address}
               size={176}
-              title={t('Receiving address')}
+              marginSize={4}
+              title={
+                selectedAmountQr
+                  ? t('QR code with amount')
+                  : t('Receiving address')
+              }
             />
+            {amountQr && (
+              <Button
+                variant='outline'
+                size='sm'
+                onClick={() =>
+                  setAmountQrTradeNo(selectedAmountQr ? null : order.trade_no)
+                }
+              >
+                {selectedAmountQr
+                  ? t('Address QR code')
+                  : t('QR code with amount')}
+              </Button>
+            )}
           </div>
         )}
         <div>

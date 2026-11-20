@@ -7852,6 +7852,8 @@
     "Publish manually maintained model availability without changing routing or model access.": "手动公示模型可用状态，不会改变路由或模型访问权限。",
     "Published groups": "已发布分组",
     "Published models": "已公示模型",
+    "Address QR code": "地址码",
+    "QR code with amount": "带金额码",
     "Receiving address": "收款地址",
     "Reconciled crypto payment": "加密货币支付补单",
     "Refusal Category": "拒绝类别",

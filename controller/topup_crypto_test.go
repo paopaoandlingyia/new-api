@@ -487,15 +487,17 @@ func TestCryptoCheckoutOwnershipAndValidation(t *testing.T) {
 		Success bool   `json:"success"`
 		Message string `json:"message"`
 		Data    struct {
-			TradeNo string `json:"trade_no"`
-			Amount  string `json:"amount"`
-			Network string `json:"network"`
-			Address string `json:"address"`
+			TradeNo    string `json:"trade_no"`
+			Amount     string `json:"amount"`
+			Network    string `json:"network"`
+			Address    string `json:"address"`
+			PaymentURI string `json:"payment_uri"`
 		} `json:"data"`
 	}
 	require.NoError(t, common.Unmarshal(response.Body.Bytes(), &checkout))
 	require.True(t, checkout.Success, response.Body.String())
 	assert.Equal(t, "10.001", checkout.Data.Amount)
+	assert.Empty(t, checkout.Data.PaymentURI)
 	var order model.CryptoPaymentOrder
 	require.NoError(t, db.Where("trade_no = ?", checkout.Data.TradeNo).First(&order).Error)
 	assert.EqualValues(t, 5000000, order.CreditQuota)
@@ -524,7 +526,8 @@ func TestCryptoCheckoutOwnershipAndValidation(t *testing.T) {
 	saveCfg := cfg
 	saveCfg.BSCEnabled = true
 	saveCfg.TRONAPIKey, saveCfg.BSCRPCURL = "", ""
-	saveCfg.BSCAddress = "0x55D398326F99059FF775485246999027B3197955"
+	const bscAddress = "0x8e23ee67d1332ad560396262c48ffbb01f93d052"
+	saveCfg.BSCAddress = "0x" + strings.ToUpper(bscAddress[2:])
 	raw, err = common.Marshal(saveCfg)
 	require.NoError(t, err)
 	response = httptest.NewRecorder()
@@ -535,14 +538,16 @@ func TestCryptoCheckoutOwnershipAndValidation(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, cfg.TRONAPIKey, stored.TRONAPIKey)
 	assert.Equal(t, cfg.BSCRPCURL, stored.BSCRPCURL)
-	assert.Equal(t, cryptopay.BSCUSDTContract, stored.BSCAddress)
+	assert.Equal(t, bscAddress, stored.BSCAddress)
 	response = httptest.NewRecorder()
 	router.ServeHTTP(response, httptest.NewRequest(http.MethodPost, "/pay", strings.NewReader(`{"amount":10,"network":"bsc"}`)))
 	require.NoError(t, common.Unmarshal(response.Body.Bytes(), &checkout))
 	require.True(t, checkout.Success, response.Body.String())
 	assert.Equal(t, "bsc", checkout.Data.Network)
-	assert.Equal(t, cryptopay.BSCUSDTContract, checkout.Data.Address)
+	assert.Equal(t, bscAddress, checkout.Data.Address)
 	assert.Equal(t, "10.001", checkout.Data.Amount, "each network reserves its own amounts")
+	paymentURI := "ethereum:" + cryptopay.BSCUSDTContract + "@56/transfer?address=" + bscAddress + "&uint256=10001000000000000000"
+	assert.Equal(t, paymentURI, checkout.Data.PaymentURI)
 	bscTradeNo := checkout.Data.TradeNo
 	stored.BSCEnabled = false
 	raw, err = common.Marshal(stored)
@@ -553,6 +558,7 @@ func TestCryptoCheckoutOwnershipAndValidation(t *testing.T) {
 	require.NoError(t, common.Unmarshal(response.Body.Bytes(), &checkout))
 	assert.True(t, checkout.Success, "disabling new BSC orders preserves existing checkout details")
 	assert.Equal(t, "bsc", checkout.Data.Network)
+	assert.Equal(t, paymentURI, checkout.Data.PaymentURI)
 	cfg.Enabled = false
 	raw, err = common.Marshal(cfg)
 	require.NoError(t, err)
@@ -561,6 +567,20 @@ func TestCryptoCheckoutOwnershipAndValidation(t *testing.T) {
 	router.ServeHTTP(response, httptest.NewRequest(http.MethodPost, "/pay", strings.NewReader(`{"amount":10,"network":"tron"}`)))
 	require.NoError(t, common.Unmarshal(response.Body.Bytes(), &checkout))
 	assert.False(t, checkout.Success)
+}
+
+func TestCryptoBSCOrderResponsePreservesLegacyPaymentPrecision(t *testing.T) {
+	const address = "0x8e23ee67d1332ad560396262c48ffbb01f93d052"
+	wallet := &model.CryptoWallet{Network: cryptopay.BSC, Asset: cryptopay.USDT, Address: address}
+	order := &model.CryptoPaymentOrder{AmountUnits: 10000007, ExpiresAt: time.Now().Add(time.Hour).UnixMilli()}
+	response := cryptoOrderResponse(order, wallet, common.TopUpStatusPending)
+	assert.Equal(t, "10.000007", response["amount"])
+	assert.Equal(t, "ethereum:"+cryptopay.BSCUSDTContract+"@56/transfer?address="+address+"&uint256=10000007000000000000", response["payment_uri"])
+
+	order.ExpiresAt = 1
+	response = cryptoOrderResponse(order, wallet, common.TopUpStatusPending)
+	assert.Equal(t, common.TopUpStatusExpired, response["status"])
+	assert.NotContains(t, response, "payment_uri")
 }
 
 func TestCryptoBSCPaymentPrecision(t *testing.T) {

@@ -7852,6 +7852,8 @@
     "Publish manually maintained model availability without changing routing or model access.": "Публикация доступности вручную без изменения маршрутизации и доступа к моделям.",
     "Published groups": "Опубликованные группы",
     "Published models": "Опубликованные модели",
+    "Address QR code": "QR-код адреса",
+    "QR code with amount": "QR-код с суммой",
     "Receiving address": "Адрес получения",
     "Reconciled crypto payment": "Криптоплатёж сопоставлен",
     "Refusal Category": "Категория отказа",

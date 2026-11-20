@@ -300,6 +300,7 @@ export interface CryptoPaymentOrder {
   asset: string
   address: string
   amount: string
+  payment_uri?: string
   credit_quota: number
   expires_at: number
   status: TopupStatus
